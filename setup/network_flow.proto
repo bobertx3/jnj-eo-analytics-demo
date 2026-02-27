@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package network_flow;
+
+message NetworkFlowRecord {
+  string flow_id = 1;
+  int64 timestamp_unix_nano = 2;
+  string src_ip = 3;
+  int32 src_port = 4;
+  string dst_ip = 5;
+  int32 dst_port = 6;
+  string protocol = 7;           // TCP, UDP, HTTP, gRPC
+  int64 bytes_sent = 8;
+  int64 bytes_received = 9;
+  int64 packets_sent = 10;
+  int64 packets_received = 11;
+  int64 latency_us = 12;         // microseconds
+  int32 retransmits = 13;
+  string src_service = 14;
+  string dst_service = 15;
+  string src_zone = 16;          // e.g., "dmz", "internal", "external"
+  string dst_zone = 17;
+  string direction = 18;         // ingress, egress, internal
+  bool connection_reset = 19;
+  bool timeout = 20;
+  string tls_version = 21;
+  string dns_query = 22;
+  int32 dns_response_code = 23;
+  string load_balancer_id = 24;
+  string environment = 25;       // prod, staging
+  string region = 26;
+}
+
+message NetworkFlowBatch {
+  repeated NetworkFlowRecord records = 1;
+  string export_timestamp = 2;
+  string collector_id = 3;
+}

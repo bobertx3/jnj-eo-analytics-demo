@@ -1,0 +1,8 @@
+command: ['python', 'app.py']
+env:
+  - name: 'DATABRICKS_WAREHOUSE_ID'
+    valueFrom: 'sql-warehouse'
+  - name: 'GENIE_SPACE_ID'
+    value: '01f11276e8831838981f4c5743c5a3e3'
+  - name: 'NODE_ENV'
+    value: 'production'

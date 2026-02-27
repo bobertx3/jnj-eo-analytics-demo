@@ -1,0 +1,156 @@
+bundle:
+  name: jnj-eo-analytics-demo
+
+variables:
+  catalog:
+    default: bx4
+  schema:
+    default: eo_analytics_plane
+  warehouse_id:
+    default: 08381690ac2b0e1a
+  genie_space_id:
+    default: 01f11276e8831838981f4c5743c5a3e3
+
+workspace:
+  host: https://fevm-stable-classic-zso77x-bx3.cloud.databricks.com
+  root_path: /Workspace/Users/robert.leach@databricks.com/${bundle.name}
+
+# All tasks use serverless compute — no cluster startup delay
+
+resources:
+
+  # ── Databricks App ─────────────────────────────────────────────────────────
+  apps:
+    jnj-eo-analytics-demo:
+      name: jnj-eo-analytics-demo
+      description: >
+        Enterprise-Wide Root Cause Intelligence — correlating signals across
+        domains and time to reveal systemic causes, not just incidents.
+      source_code_path: .
+      config:
+        command:
+          - python
+          - app.py
+        env:
+          - name: DATABRICKS_WAREHOUSE_ID
+            value_from: sql-warehouse
+          - name: GENIE_SPACE_ID
+            value: ${var.genie_space_id}
+          - name: NODE_ENV
+            value: production
+      resources:
+        - name: sql-warehouse
+          sql_warehouse:
+            id: ${var.warehouse_id}
+            permission: CAN_USE
+      permissions:
+        - level: CAN_USE
+          group_name: users
+
+  # ── Pipeline Job ───────────────────────────────────────────────────────────
+  jobs:
+    jnj-eo-analytics-demo-pipeline:
+      name: jnj-eo-analytics-demo-pipeline
+      description: >
+        Ingests raw OpenTelemetry telemetry from Unity Catalog volume and
+        builds bronze → silver → gold tables for the RCA Intelligence app.
+
+      tags:
+        project: jnj-eo-analytics-demo
+        cost_center: CC-78432
+        manager: robert.leach@jnj.com
+        owner: hls-platform-engineering
+
+      schedule:
+        quartz_cron_expression: "0 0 2 * * ?"
+        timezone_id: UTC
+        pause_status: PAUSED
+
+      max_concurrent_runs: 1
+
+      queue:
+        enabled: true
+
+      tasks:
+
+        # ── Bronze Ingestion (run in parallel) ─────────────────────────────
+        # ingest_metrics uses serverless notebook (Python protobuf decoder)
+        - task_key: ingest_metrics
+          description: "Read OTLP protobuf .pb files from volume → bronze_metrics"
+          notebook_task:
+            notebook_path: /Shared/eo_analytics_plane/jnj-eo-analytics-demo/pipeline_tasks/ingest_metrics_pb
+            source: WORKSPACE
+          environment_key: Default
+
+        # All SQL notebook tasks use serverless — no cluster startup delay
+        - task_key: ingest_logs
+          description: "Read JSONL logs from volume → bronze_logs"
+          notebook_task:
+            notebook_path: /Shared/eo_analytics_plane/jnj-eo-analytics-demo/pipeline_tasks/ingest_logs
+            source: WORKSPACE
+          environment_key: Default
+
+        - task_key: ingest_traces
+          description: "Read JSON traces from volume → bronze_traces"
+          notebook_task:
+            notebook_path: /Shared/eo_analytics_plane/jnj-eo-analytics-demo/pipeline_tasks/ingest_traces
+            source: WORKSPACE
+          environment_key: Default
+
+        - task_key: ingest_events
+          description: "Read incidents/alerts/topology JSONL from volume → bronze tables"
+          notebook_task:
+            notebook_path: /Shared/eo_analytics_plane/jnj-eo-analytics-demo/pipeline_tasks/ingest_events
+            source: WORKSPACE
+          environment_key: Default
+
+        - task_key: ingest_network_flows
+          description: "Generate and ingest network flow data → bronze_network_flows"
+          notebook_task:
+            notebook_path: /Shared/eo_analytics_plane/jnj-eo-analytics-demo/pipeline_tasks/ingest_network_flows
+            source: WORKSPACE
+          environment_key: Default
+
+        # ── Silver Transform (waits for all bronze) ─────────────────────────
+        - task_key: build_silver
+          description: "Enrich and join bronze tables → silver layer (6 tables)"
+          depends_on:
+            - task_key: ingest_metrics
+            - task_key: ingest_logs
+            - task_key: ingest_traces
+            - task_key: ingest_events
+            - task_key: ingest_network_flows
+          notebook_task:
+            notebook_path: /Shared/eo_analytics_plane/jnj-eo-analytics-demo/pipeline_tasks/silver_transforms
+            source: WORKSPACE
+          environment_key: Default
+
+        # ── Gold Transform (waits for silver) ──────────────────────────────
+        - task_key: build_gold
+          description: "Aggregate silver → gold analytics layer (5 tables incl. business impact)"
+          depends_on:
+            - task_key: build_silver
+          notebook_task:
+            notebook_path: /Shared/eo_analytics_plane/jnj-eo-analytics-demo/pipeline_tasks/gold_transforms
+            source: WORKSPACE
+          environment_key: Default
+
+      environments:
+        - environment_key: Default
+          spec:
+            client: "1"
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      root_path: ~/eo_analytics_plane/${bundle.name}-dev
+
+  prod:
+    mode: production
+    workspace:
+      root_path: /Workspace/Users/robert.leach@databricks.com/${bundle.name}
+    variables:
+      warehouse_id: 08381690ac2b0e1a
+      genie_space_id: 01f11276e8831838981f4c5743c5a3e3
