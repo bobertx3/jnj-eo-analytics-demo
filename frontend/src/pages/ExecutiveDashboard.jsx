@@ -47,6 +47,12 @@ export default function ExecutiveDashboard() {
     impact: Number(t.daily_revenue_impact) || 0,
   }));
 
+  const topIssuePatients = Number(
+    topIssue?.total_patient_impact ?? topIssue?.total_affected_users ?? 0
+  ) || 0;
+  const topIssueAvgMttr = Number(topIssue?.avg_mttr_minutes ?? 0);
+  const topIssuePriority = Number(topIssue?.priority_score ?? 0);
+
   return (
     <div>
       <div className="page-header">
@@ -147,17 +153,29 @@ export default function ExecutiveDashboard() {
                   <DollarSign size={14} /> {formatCurrency(topIssue.total_revenue_impact)} impact
                 </span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <Users size={14} /> {formatNumber(topIssue.total_patient_impact)} patients
+                  <Users size={14} /> {formatNumber(topIssuePatients)} patients
                 </span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <Clock size={14} /> Avg {topIssue.avg_mttr_minutes}m MTTR
+                  <Clock size={14} /> Avg {Number.isFinite(topIssueAvgMttr) ? topIssueAvgMttr.toFixed(1) : '--'}m MTTR
                 </span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   <Shield size={14} /> {topIssue.sla_breach_count} SLA breaches
                 </span>
               </div>
               <div style={{ marginTop: 8, fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
-                Root Service: <code>{topIssue.root_service}</code> | Priority Score: {topIssue.priority_score}
+                Root Service: <code>{topIssue.root_service}</code> | Priority Score: {Number.isFinite(topIssuePriority) ? topIssuePriority.toFixed(0) : '--'}
+              </div>
+              <div style={{ marginTop: 8, maxWidth: 480 }}>
+                <InfoExpander title="How should I interpret Priority Score and Revenue Impact?" mode="hover">
+                  <p style={{ marginTop: 8 }}>
+                    <strong>Priority Score</strong> is a composite ranking metric used to compare patterns, not a percent.
+                    It combines frequency, P1 weight, blast radius, affected users, SLA breaches, and a trend bonus when a pattern is worsening.
+                  </p>
+                  <p style={{ marginTop: 8 }}>
+                    <strong>Revenue Impact</strong> is an estimated operational impact calculated at incident level from
+                    severity-weighted cost and blast radius, then rolled up across all occurrences of the pattern.
+                  </p>
+                </InfoExpander>
               </div>
             </div>
           </div>

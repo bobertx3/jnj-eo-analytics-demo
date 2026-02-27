@@ -1,16 +1,33 @@
 # Enterprise RCA Intelligence Demo Talk Track
 
-This talk track walks through each page in the app and explains what to say while presenting the visuals!
+This version is built for a VP audience: business-first, plain English, and one consistent storyline.
+
+## Core Storyline (Use This Throughout)
+
+We are tracing one issue from symptom to business impact:
+- The environment shows chronic stress around the SAP integration path (`erp-sap-connector`).
+- The acute business-impact event is an app-layer failure on `check-inventory-api` when SAP calls time out.
+- That disruption propagates to order and shipment workflows, increasing delayed fulfillment risk.
+- The platform value is that it lets us quickly answer three executive questions:
+  1. What is the likely root-cause chain?
+  2. What is the blast radius (who else is affected)?
+  3. What is the revenue impact and why?
+
+Revenue impact (concise explanation):
+- At incident level, the model uses a severity-weighted impact multiplied by blast radius.
+- At dashboard level, values are summed across incidents to show cumulative business exposure.
 
 ## 1) Executive Dashboard
 
 ![Executive Dashboard](images/executive-dashboard.png)
 
-**Narrative**
-- Start with the executive lens: overall incident volume, severity mix, MTTR, revenue impact, and patient impact.
-- Call out the "Number 1 Systemic Issue to Fix" panel as the top remediation target.
-- Use the timeline and domain distribution visuals to explain where reliability pressure is concentrated over time.
-- Close on the new ServiceNow ticket noise table to show operational burden from duplicate tickets.
+**Overview**
+- Enterprise KPI landing page: incident volume, severity, MTTR, revenue impact, patient impact, and SLA performance.
+
+**Storyline narrative (what to say)**
+- "Start with business impact: we have meaningful cumulative revenue exposure, and the top systemic issue points at the SAP integration path."
+- "This tells leadership where to focus first without reading technical logs."
+- "From here, we pivot from KPI signal to root-cause evidence and blast radius."
 
 **Key visual callouts**
 - Top KPI cards (incidents, MTTR, revenue impact, SLA breaches).
@@ -22,11 +39,13 @@ This talk track walks through each page in the app and explains what to say whil
 
 ![Root Cause Intelligence](images/root-cause-intelligence.png)
 
-**Narrative**
-- Explain that this page ranks recurring failure patterns by priority score (frequency x impact).
-- Select one pattern and describe its operational profile (MTTR, blast radius, revenue impact, patient impact).
-- Use the radar chart to compare impact dimensions quickly.
-- Optionally run AI analysis for a narrative remediation plan.
+**Overview**
+- Ranked recurring failure patterns with operational and business impact dimensions.
+
+**Storyline narrative (what to say)**
+- "This is where we separate symptom from cause: SAP connector overload appears as a recurring systemic pattern."
+- "We also see the high-impact API timeout pattern (`check-inventory-api` to SAP) that drives the acute shipment risk."
+- "The key value: one page ties frequency, blast radius, MTTR, and revenue so we can prioritize remediation."
 
 **Key visual callouts**
 - Horizontal priority ranking chart.
@@ -37,11 +56,13 @@ This talk track walks through each page in the app and explains what to say whil
 
 ![Service Risk Ranking](images/service-risk-ranking.png)
 
-**Narrative**
-- Shift from pattern-centric to service-centric risk.
-- Show how services are prioritized using incident frequency, blast radius, and business impact.
-- Use the scatter plot to identify "high incidents + high revenue impact" outliers.
-- Drill into a single service to discuss health trends and recent incident behavior.
+**Overview**
+- Service-level risk leaderboard and service detail trends.
+
+**Storyline narrative (what to say)**
+- "Now we convert pattern insight into service ownership: which teams should act first."
+- "The SAP connector and inventory API rise to the top, showing both chronic risk and direct business sensitivity."
+- "This gives an action list for engineering leaders: stabilize these services to reduce shipment and revenue risk fastest."
 
 **Key visual callouts**
 - Risk score bar chart (top services).
@@ -52,11 +73,13 @@ This talk track walks through each page in the app and explains what to say whil
 
 ![Change Correlation](images/change-correlation.png)
 
-**Narrative**
-- Position this page as change-risk attribution: which changes are followed by incidents.
-- Show incident-causing change rate by change type and average correlation strength.
-- Use high-correlation pairs to discuss likely causal links and preventive controls.
-- Close with executor-level table to identify process or team-level reliability patterns.
+**Overview**
+- Correlates change events with incidents to identify likely triggers and risky change types.
+
+**Storyline narrative (what to say)**
+- "This page answers: did a change likely contribute to incident timing?"
+- "For the SAP/inventory thread, this helps confirm whether instability is mostly load/systemic or change-induced."
+- "Leadership outcome: better guardrails and release policy around high-risk changes."
 
 **Key visual callouts**
 - Changes vs incidents timeline.
@@ -68,11 +91,13 @@ This talk track walks through each page in the app and explains what to say whil
 
 ![Domain Deep Dive](images/domain-deep-dive.png)
 
-**Narrative**
-- Explain this as the tactical view for domain owners (Infrastructure, Application, Network).
-- Select a domain and show its incident trend, revenue/risk trend, service-level risk, and alert profile.
-- Use the revenue impact explainer to clarify how impact is estimated.
-- End on recent incidents to connect trend analytics to concrete events.
+**Overview**
+- Domain owner view (Infrastructure, Application, Network) with trends, services, alerts, and incidents.
+
+**Storyline narrative (what to say)**
+- "This is where we quantify where risk is concentrated by domain while staying tied to one business narrative."
+- "For this storyline, infrastructure and application domains are the key handoff points between SAP bridge stress and API failure impact."
+- "The revenue explainer keeps the model transparent: severity-weighted per-incident impact rolled up across the domain."
 
 **Key visual callouts**
 - Domain selector tiles with incident + revenue totals.
@@ -84,11 +109,13 @@ This talk track walks through each page in the app and explains what to say whil
 
 ![Topology Explorer](images/topology-explorer.png)
 
-**Narrative**
-- Describe this as blast-radius and propagation context.
-- Explain node semantics: color for risk/domain, size/intensity for risk level.
-- Explain edge semantics: red dashed lines indicate anomalous traffic paths.
-- Click a node to review service details and connected dependencies.
+**Overview**
+- Dependency graph showing propagation paths and anomalous traffic.
+
+**Storyline narrative (what to say)**
+- "This is the blast-radius proof: from SAP integration path to inventory API, then into order and shipment services."
+- "It visually explains why one API timeout can become a multi-service business event."
+- "For executives, this is the fastest way to understand cascading impact without deep technical detail."
 
 **Key visual callouts**
 - Domain zones (network/application/infrastructure).
@@ -99,11 +126,13 @@ This talk track walks through each page in the app and explains what to say whil
 
 ![Ask Genie](images/ask-genie.png)
 
-**Narrative**
-- Present Genie as the natural-language layer for ad hoc investigation.
-- Start with a sample question to accelerate time-to-insight.
-- Show generated SQL and supporting data to reinforce explainability.
-- Highlight ticket-noise and business-impact prompts for stakeholder-specific Q&A.
+**Overview**
+- Natural-language investigation layer for follow-up questions and decision support.
+
+**Storyline narrative (what to say)**
+- "After the walkthrough, leadership can self-serve answers on this exact storyline."
+- "Example: 'How many incidents were root cause vs impacted for check-inventory-api and erp-sap-connector?'"
+- "The SQL and supporting data keep answers auditable for executive readouts."
 
 **Key visual callouts**
 - Collapsible sample question panel.
@@ -111,10 +140,10 @@ This talk track walks through each page in the app and explains what to say whil
 
 ## Suggested Demo Flow (7-10 minutes)
 
-1. Executive Dashboard (business context and top risk)
-2. Root Cause Intelligence (pattern-level diagnosis)
-3. Service Risk Ranking (service prioritization)
-4. Change Correlation (likely causality from changes)
-5. Domain Deep Dive (owner-level operational action)
-6. Topology Explorer (dependency and blast-radius context)
-7. Ask Genie (self-serve investigation and follow-up questions)
+1. Executive Dashboard (business exposure and top issue)
+2. Root Cause Intelligence (systemic vs acute root-cause patterns)
+3. Service Risk Ranking (ownership and prioritization)
+4. Topology Explorer (blast radius and propagation path)
+5. Domain Deep Dive (domain accountability and trend depth)
+6. Change Correlation (change-risk context)
+7. Ask Genie (self-serve executive Q&A)
