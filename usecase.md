@@ -1,6 +1,6 @@
 # Enterprise RCA Intelligence Demo Talk Track
 
-This talk track walks through each page in the app and explains what to say while presenting the visuals.
+This talk track walks through each page in the app and explains what to say while presenting the visuals!
 
 ## 1) Executive Dashboard
 
