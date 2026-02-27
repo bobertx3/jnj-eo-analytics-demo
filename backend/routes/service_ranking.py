@@ -147,7 +147,8 @@ async def get_service_topology():
       SELECT
         src_service,
         dst_service,
-        COUNT(*) as flow_count,
+        COUNT(*) as network_flow_count,
+        0 as incident_link_count,
         AVG(latency_us) as avg_latency_us,
         SUM(CASE WHEN connection_reset THEN 1 ELSE 0 END) as reset_count,
         SUM(CASE WHEN timeout THEN 1 ELSE 0 END) as timeout_count,
@@ -160,7 +161,8 @@ async def get_service_topology():
       SELECT
         root_service as src_service,
         impacted_service as dst_service,
-        COUNT(*) * 100 as flow_count,
+        0 as network_flow_count,
+        COUNT(*) as incident_link_count,
         CAST(NULL AS DOUBLE) as avg_latency_us,
         0 as reset_count,
         0 as timeout_count,
@@ -186,7 +188,10 @@ async def get_service_topology():
     SELECT
       src_service,
       dst_service,
-      SUM(flow_count) as flow_count,
+      SUM(network_flow_count) as network_flow_count,
+      SUM(incident_link_count) as incident_link_count,
+      -- Keep flow_count for frontend compatibility: network volume + weighted incident links.
+      SUM(network_flow_count) + (SUM(incident_link_count) * 100) as flow_count,
       AVG(avg_latency_us) as avg_latency_us,
       SUM(reset_count) as reset_count,
       SUM(timeout_count) as timeout_count,

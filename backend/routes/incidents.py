@@ -172,3 +172,48 @@ async def get_mttr_trend(days: int = Query(default=90)):
     ORDER BY week_num
     """)
     return rows
+
+
+@router.get("/{incident_id}")
+async def get_incident_detail(incident_id: str):
+    """Get full detail payload for a single incident."""
+    rows = execute_query(f"""
+    SELECT
+      incident_id,
+      title,
+      description,
+      severity,
+      severity_level,
+      status,
+      created_at,
+      resolved_at,
+      mttr_minutes,
+      root_service,
+      impacted_services,
+      blast_radius,
+      domain,
+      failure_pattern_id,
+      failure_pattern_name,
+      environment,
+      region,
+      revenue_impact_usd,
+      patient_impact_count,
+      sla_breached,
+      business_unit,
+      affected_user_count,
+      affected_roles,
+      productivity_loss_hours,
+      productivity_loss_usd,
+      shipments_delayed,
+      servicenow_ticket_count,
+      servicenow_duplicate_tickets,
+      downstream_impact_narrative,
+      root_cause_explanation,
+      revenue_model,
+      correlated_alert_count,
+      impact_score
+    FROM {CATALOG}.{SCHEMA}.silver_incidents
+    WHERE incident_id = '{incident_id}'
+    LIMIT 1
+    """)
+    return rows[0] if rows else {}

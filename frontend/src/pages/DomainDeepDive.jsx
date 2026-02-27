@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
   BarChart, Bar, Cell, Legend,
@@ -19,14 +19,37 @@ const DOMAINS = [
 
 export default function DomainDeepDive() {
   const [selectedDomain, setSelectedDomain] = useState('infrastructure');
+  const [selectedIncidentId, setSelectedIncidentId] = useState(null);
   const { data: domainSummary } = useApi('/api/domains/summary');
   const { data: domainTrend } = useApi(`/api/domains/trend?domain=${selectedDomain}&days=90`);
   const { data: domainServices } = useApi(`/api/domains/${selectedDomain}/services`);
   const { data: domainIncidents } = useApi(`/api/domains/${selectedDomain}/incidents?days=90&limit=30`);
   const { data: domainAlerts } = useApi(`/api/domains/${selectedDomain}/alerts?days=30`);
+  const { data: incidentDetail, loading: incidentDetailLoading } = useApi(
+    selectedIncidentId ? `/api/incidents/${selectedIncidentId}` : null
+  );
 
   const currentDomain = (domainSummary || []).find(d => d.domain === selectedDomain) || {};
   const domainConfig = DOMAINS.find(d => d.key === selectedDomain);
+  const impactedServices = useMemo(() => {
+    const raw = incidentDetail?.impacted_services;
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string') {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {
+        // Continue with lightweight normalization fallback.
+      }
+      return raw
+        .replace(/^\[|\]$/g, '')
+        .split(',')
+        .map((s) => s.replace(/^['"\s]+|['"\s]+$/g, ''))
+        .filter(Boolean);
+    }
+    return [];
+  }, [incidentDetail]);
 
   // Trend data for charts
   const trendData = (domainTrend || []).map(t => ({
@@ -279,7 +302,15 @@ export default function DomainDeepDive() {
             <tbody>
               {(domainIncidents || []).map(inc => (
                 <tr key={inc.incident_id}>
-                  <td className="mono">{inc.incident_id}</td>
+                  <td className="mono">
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      style={{ padding: '2px 8px' }}
+                      onClick={() => setSelectedIncidentId(inc.incident_id)}
+                    >
+                      {inc.incident_id}
+                    </button>
+                  </td>
                   <td><SeverityBadge severity={inc.severity} /></td>
                   <td>{inc.title}</td>
                   <td><code>{inc.root_service}</code></td>
@@ -300,6 +331,94 @@ export default function DomainDeepDive() {
           </table>
         </div>
       </div>
+
+      {selectedIncidentId && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(1, 4, 9, 0.28)',
+            zIndex: 1000,
+            display: 'flex',
+            justifyContent: 'flex-end',
+            alignItems: 'stretch',
+            padding: 0,
+          }}
+          onClick={() => setSelectedIncidentId(null)}
+        >
+          <div
+            className="card"
+            style={{
+              width: 'min(760px, 92vw)',
+              height: '100vh',
+              overflowY: 'auto',
+              borderRadius: 0,
+              border: '1px solid var(--color-border)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span className="card-title">Incident Payload: {selectedIncidentId}</span>
+              <button className="btn btn-secondary btn-sm" onClick={() => setSelectedIncidentId(null)}>
+                Close
+              </button>
+            </div>
+
+            {incidentDetailLoading ? (
+              <LoadingState message="Loading incident detail..." />
+            ) : !incidentDetail || !incidentDetail.incident_id ? (
+              <div style={{ padding: 16, color: 'var(--color-text-muted)' }}>No incident detail found.</div>
+            ) : (
+              <div style={{ padding: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 12, marginBottom: 16 }}>
+                  <div><div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>Severity</div><div><SeverityBadge severity={incidentDetail.severity} /></div></div>
+                  <div><div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>Root Service</div><div><code>{incidentDetail.root_service}</code></div></div>
+                  <div><div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>Created</div><div>{formatDateTime(incidentDetail.created_at)}</div></div>
+                  <div><div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>MTTR</div><div>{incidentDetail.mttr_minutes}m</div></div>
+                </div>
+
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Title</div>
+                  <div style={{ fontWeight: 700 }}>{incidentDetail.title}</div>
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Description</div>
+                  <div>{incidentDetail.description || '--'}</div>
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Root Cause Explanation</div>
+                  <div>{incidentDetail.root_cause_explanation || '--'}</div>
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Impacted Services</div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {impactedServices.map((svc) => (
+                      <span key={svc} className="badge badge-info">{svc}</span>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
+                    Raw Incident JSON
+                  </div>
+                  <pre style={{
+                    background: 'var(--color-bg-elevated)',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: 12,
+                    overflowX: 'auto',
+                    fontSize: '0.75rem',
+                    lineHeight: 1.4,
+                  }}>
+                    {JSON.stringify(incidentDetail, null, 2)}
+                  </pre>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
