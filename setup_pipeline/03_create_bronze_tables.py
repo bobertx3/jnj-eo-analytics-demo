@@ -564,7 +564,7 @@ def main():
       business_unit,
       CAST(affected_user_count AS INT) as affected_user_count,
       -- Backward-compatible alias for older API/UI queries
-      CAST(affected_user_count AS INT) as patient_impact_count,
+      CAST(affected_user_count AS INT) as user_impact_count,
       affected_roles,
       CAST(productivity_loss_hours AS DOUBLE) as productivity_loss_hours,
       CAST(productivity_loss_usd AS DOUBLE) as productivity_loss_usd,

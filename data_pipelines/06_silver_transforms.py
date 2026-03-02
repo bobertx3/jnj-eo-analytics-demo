@@ -37,7 +37,7 @@
 # MAGIC   i.business_unit,
 # MAGIC   i.affected_user_count,
 # MAGIC   -- Backward-compatible alias used by legacy API/UI queries
-# MAGIC   i.affected_user_count as patient_impact_count,
+# MAGIC   i.affected_user_count as user_impact_count,
 # MAGIC   i.affected_roles,
 # MAGIC   i.productivity_loss_hours,
 # MAGIC   i.productivity_loss_usd,

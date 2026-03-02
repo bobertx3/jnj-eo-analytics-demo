@@ -24,7 +24,7 @@ async def get_service_risk_ranking():
       total_blast_radius,
       avg_blast_radius,
       total_revenue_impact,
-      total_affected_users as total_patient_impact,
+      total_affected_users as total_user_impact,
       sla_breaches,
       unique_failure_patterns,
       avg_health_score,
@@ -222,7 +222,7 @@ async def get_service_incidents(service_name: str, limit: int = Query(default=20
       blast_radius,
       failure_pattern_name,
       revenue_impact_usd,
-      patient_impact_count,
+      affected_user_count,
       CASE WHEN root_service = '{service_name}' THEN 'root_cause' ELSE 'impacted' END as role
     FROM {CATALOG}.{SCHEMA}.silver_incidents
     WHERE root_service = '{service_name}'

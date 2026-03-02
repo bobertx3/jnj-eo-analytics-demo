@@ -12,7 +12,16 @@
 # MAGIC -- gold_root_cause_patterns: Recurring failure pattern analysis
 # MAGIC -- ============================================================================
 # MAGIC CREATE OR REPLACE TABLE bx4.eo_analytics_plane.gold_root_cause_patterns AS
-# MAGIC WITH pattern_stats AS (
+# MAGIC WITH impacted_services_agg AS (
+# MAGIC   SELECT
+# MAGIC     failure_pattern_id,
+# MAGIC     collect_set(svc) as all_impacted_services
+# MAGIC   FROM bx4.eo_analytics_plane.silver_incidents
+# MAGIC   LATERAL VIEW explode(impacted_services) explode_svc AS svc
+# MAGIC   WHERE failure_pattern_id IS NOT NULL
+# MAGIC   GROUP BY failure_pattern_id
+# MAGIC ),
+# MAGIC pattern_stats AS (
 # MAGIC   SELECT
 # MAGIC     failure_pattern_id,
 # MAGIC     failure_pattern_name,
@@ -41,10 +50,8 @@
 # MAGIC     MAX(created_at) as last_occurrence,
 # MAGIC     first(revenue_model) as revenue_model,
 # MAGIC     first(root_cause_explanation) as root_cause_explanation,
-# MAGIC     collect_set(root_service) as affected_root_services,
-# MAGIC     collect_set(explode_svc.svc) as all_impacted_services
+# MAGIC     collect_set(root_service) as affected_root_services
 # MAGIC   FROM bx4.eo_analytics_plane.silver_incidents
-# MAGIC   LATERAL VIEW explode(impacted_services) explode_svc AS svc
 # MAGIC   WHERE failure_pattern_id IS NOT NULL
 # MAGIC   GROUP BY failure_pattern_id, failure_pattern_name, root_service, domain
 # MAGIC ),
@@ -72,6 +79,7 @@
 # MAGIC )
 # MAGIC SELECT
 # MAGIC   ps.*,
+# MAGIC   isa.all_impacted_services,
 # MAGIC   CASE
 # MAGIC     WHEN ts.recent_avg > ts.previous_avg * 1.2 THEN 'worsening'
 # MAGIC     WHEN ts.recent_avg < ts.previous_avg * 0.8 THEN 'improving'
@@ -94,6 +102,7 @@
 # MAGIC   END as avg_days_between_occurrences,
 # MAGIC   current_timestamp() as computed_at
 # MAGIC FROM pattern_stats ps
+# MAGIC LEFT JOIN impacted_services_agg isa ON ps.failure_pattern_id = isa.failure_pattern_id
 # MAGIC LEFT JOIN trend_summary ts ON ps.failure_pattern_id = ts.failure_pattern_id
 # MAGIC ORDER BY priority_score DESC;
 # MAGIC

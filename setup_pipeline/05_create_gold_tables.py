@@ -13,7 +13,7 @@ from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.sql import StatementState
 
 PROFILE = os.environ.get("DATABRICKS_PROFILE", "DEFAULT")
-CATALOG = "jnj_eo_demo"
+CATALOG = "bx4"
 SCHEMA = "eo_analytics_plane"
 
 
@@ -68,7 +68,16 @@ def main():
     # ── gold_root_cause_patterns ───────────────────────────────────
     execute_sql(w, warehouse_id, f"""
     CREATE OR REPLACE TABLE {CATALOG}.{SCHEMA}.gold_root_cause_patterns AS
-    WITH pattern_stats AS (
+    WITH impacted_services_agg AS (
+      SELECT
+        failure_pattern_id,
+        collect_set(svc) as all_impacted_services
+      FROM {CATALOG}.{SCHEMA}.silver_incidents
+      LATERAL VIEW explode(impacted_services) explode_svc AS svc
+      WHERE failure_pattern_id IS NOT NULL
+      GROUP BY failure_pattern_id
+    ),
+    pattern_stats AS (
       SELECT
         failure_pattern_id,
         failure_pattern_name,
@@ -97,10 +106,8 @@ def main():
         MAX(created_at) as last_occurrence,
         first(revenue_model) as revenue_model,
         first(root_cause_explanation) as root_cause_explanation,
-        collect_set(root_service) as affected_root_services,
-        collect_set(explode_svc.svc) as all_impacted_services
+        collect_set(root_service) as affected_root_services
       FROM {CATALOG}.{SCHEMA}.silver_incidents
-      LATERAL VIEW explode(impacted_services) explode_svc AS svc
       WHERE failure_pattern_id IS NOT NULL
       GROUP BY failure_pattern_id, failure_pattern_name, root_service, domain
     ),
@@ -128,6 +135,7 @@ def main():
     )
     SELECT
       ps.*,
+      isa.all_impacted_services,
       CASE
         WHEN ts.recent_avg > ts.previous_avg * 1.2 THEN 'worsening'
         WHEN ts.recent_avg < ts.previous_avg * 0.8 THEN 'improving'
@@ -150,6 +158,7 @@ def main():
       END as avg_days_between_occurrences,
       current_timestamp() as computed_at
     FROM pattern_stats ps
+    LEFT JOIN impacted_services_agg isa ON ps.failure_pattern_id = isa.failure_pattern_id
     LEFT JOIN trend_summary ts ON ps.failure_pattern_id = ts.failure_pattern_id
     ORDER BY priority_score DESC
     """, "Creating gold_root_cause_patterns")

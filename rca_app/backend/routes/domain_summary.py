@@ -21,7 +21,7 @@ async def get_domain_summary():
       ROUND(AVG(avg_mttr_minutes), 1) as avg_mttr,
       SUM(total_blast_radius) as total_blast_radius,
       ROUND(SUM(total_revenue_impact), 2) as total_revenue_impact,
-      SUM(total_affected_users) as total_patient_impact,
+      SUM(total_affected_users) as total_user_impact,
       SUM(sla_breaches) as total_sla_breaches,
       SUM(alert_count) as total_alerts,
       SUM(critical_alert_count) as total_critical_alerts,
@@ -47,7 +47,7 @@ async def get_domain_heatmap(days: int = Query(default=90)):
       incident_count,
       p1_count,
       total_revenue_impact,
-      total_affected_users as total_patient_impact,
+      total_affected_users as total_user_impact,
       alert_count,
       critical_alert_count,
       change_count,
@@ -77,7 +77,7 @@ async def get_domain_trend(
       SUM(incident_count) as weekly_incidents,
       SUM(p1_count) as weekly_p1,
       ROUND(SUM(total_revenue_impact), 2) as weekly_revenue_impact,
-      SUM(total_affected_users) as weekly_patient_impact,
+      SUM(total_affected_users) as weekly_user_impact,
       ROUND(AVG(domain_risk_score), 2) as avg_risk_score,
       SUM(change_count) as weekly_changes,
       SUM(alert_count) as weekly_alerts
@@ -124,7 +124,7 @@ async def get_domain_services(domain_name: str):
       p1_count,
       avg_mttr_minutes,
       total_revenue_impact,
-      total_affected_users as total_patient_impact,
+      total_affected_users as total_user_impact,
       avg_health_score,
       avg_error_rate,
       risky_changes
@@ -154,7 +154,7 @@ async def get_domain_incidents(
       blast_radius,
       failure_pattern_name,
       revenue_impact_usd,
-      patient_impact_count,
+      affected_user_count,
       sla_breached
     FROM {CATALOG}.{SCHEMA}.silver_incidents
     WHERE domain = '{domain_name}'

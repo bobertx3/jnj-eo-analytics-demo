@@ -34,8 +34,8 @@ async def get_root_cause_patterns():
       max_blast_radius,
       total_revenue_impact,
       avg_revenue_impact,
-      total_affected_users as total_patient_impact,
-      avg_affected_users as avg_patient_impact,
+      total_affected_users as total_user_impact,
+      avg_affected_users as avg_user_impact,
       p1_count,
       p2_count,
       p3_count,
@@ -79,7 +79,7 @@ async def get_pattern_timeline(pattern_id: str):
       root_service,
       blast_radius,
       revenue_impact_usd,
-      patient_impact_count,
+      affected_user_count,
       sla_breached
     FROM {CATALOG}.{SCHEMA}.silver_incidents
     WHERE failure_pattern_id = '{pattern_id}'
@@ -137,7 +137,7 @@ async def generate_ai_analysis(
 
     service_ranking = execute_query(f"""
     SELECT service_name, risk_score, incident_count_as_root, total_revenue_impact,
-           total_affected_users as total_patient_impact, avg_mttr_minutes, unique_failure_patterns
+           total_affected_users as total_user_impact, avg_mttr_minutes, unique_failure_patterns
     FROM {CATALOG}.{SCHEMA}.gold_service_risk_ranking
     ORDER BY risk_score DESC LIMIT 10
     """)
@@ -152,20 +152,20 @@ async def generate_ai_analysis(
         {
             "role": "system",
             "content": """You are an expert Site Reliability Engineer (SRE) and root cause analysis specialist
-for a large healthcare / health life sciences (HLS) enterprise. You analyze observability data
+for a large life sciences (HLS) enterprise. You analyze observability data
 from OpenTelemetry signals across infrastructure, applications, and network domains.
 
 Your analysis must be:
 1. Evidence-based - cite specific data points, patterns, and metrics
 2. Actionable - provide specific remediation recommendations
-3. Prioritized - rank issues by patient impact, revenue impact, and frequency
-4. Healthcare-aware - understand HIPAA, patient safety, and clinical workflow implications
+3. Prioritized - rank issues by user impact, revenue impact, and frequency
+4. Business-aware - understand supply chain, manufacturing, R&D, and employee productivity implications
 
 Format your response in structured markdown with clear sections."""
         },
         {
             "role": "user",
-            "content": f"""Analyze the following root cause patterns and service risk data from our healthcare
+            "content": f"""Analyze the following root cause patterns and service risk data from our life sciences
 enterprise observability platform. Provide:
 
 1. **Executive Summary** - 2-3 sentence overview of systemic health
@@ -245,7 +245,7 @@ def _generate_fallback_analysis(patterns: list, services: list) -> str:
         f"- Average MTTR: {top.get('avg_mttr_minutes', 0)} minutes\n"
         f"- P1 incidents: {top.get('p1_count', 0)}\n"
         f"- SLA breaches: {top.get('sla_breach_count', 0)}\n"
-        f"- Total patient impact: {top.get('total_patient_impact', 0)} patients affected\n"
+        f"- Total user impact: {top.get('total_user_impact', 0)} users affected\n"
         f"- Recurrence interval: every {top.get('avg_days_between_occurrences', 'N/A')} days\n"
     )
 

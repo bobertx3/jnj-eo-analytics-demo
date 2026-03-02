@@ -47,8 +47,8 @@ export default function ExecutiveDashboard() {
     impact: Number(t.daily_revenue_impact) || 0,
   }));
 
-  const topIssuePatients = Number(
-    topIssue?.total_patient_impact ?? topIssue?.total_affected_users ?? 0
+  const topIssueUsers = Number(
+    topIssue?.total_user_impact ?? topIssue?.total_affected_users ?? 0
   ) || 0;
   const topIssueAvgMttr = Number(topIssue?.avg_mttr_minutes ?? 0);
   const topIssuePriority = Number(topIssue?.priority_score ?? 0);
@@ -113,8 +113,8 @@ export default function ExecutiveDashboard() {
           </InfoExpander>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Patients Impacted</div>
-          <div className="stat-value info">{formatNumber(s.total_patient_impact)}</div>
+          <div className="stat-label">Users Impacted</div>
+          <div className="stat-value info">{formatNumber(s.total_user_impact)}</div>
           <div className="stat-change">Across all incidents</div>
         </div>
         <div className="stat-card">
@@ -153,7 +153,7 @@ export default function ExecutiveDashboard() {
                   <DollarSign size={14} /> {formatCurrency(topIssue.total_revenue_impact)} impact
                 </span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <Users size={14} /> {formatNumber(topIssuePatients)} patients
+                  <Users size={14} /> {formatNumber(topIssueUsers)} users
                 </span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   <Clock size={14} /> Avg {Number.isFinite(topIssueAvgMttr) ? topIssueAvgMttr.toFixed(1) : '--'}m MTTR
@@ -244,7 +244,7 @@ export default function ExecutiveDashboard() {
             </p>
             <ul style={{ margin: '6px 0 0 0', paddingLeft: 18 }}>
               <li><strong>Revenue Impact</strong>: Sum of per-incident revenue impact for all incidents in the domain (see Revenue Impact card for the per-incident formula)</li>
-              <li><strong>Patient Impact</strong>: Sum of estimated patients affected — P1/P2 incidents affect 50–500 patients; P3 affects 5–50</li>
+              <li><strong>User Impact</strong>: Sum of estimated users affected — P1/P2 incidents affect 50–500 users; P3 affects 5–50</li>
               <li><strong>Risk Score</strong>: Composite score computed as:
                 <br /><code style={{ fontSize: '0.78rem' }}>incident_count × avg_blast_radius × (1 + revenue_impact / $100K)</code>
                 <br />Higher scores indicate domains with both high frequency and high financial consequence.
@@ -261,7 +261,7 @@ export default function ExecutiveDashboard() {
                 <th>Incidents</th>
                 <th>P1s</th>
                 <th>Revenue Impact</th>
-                <th>Patient Impact</th>
+                <th>User Impact</th>
                 <th>SLA Breaches</th>
                 <th>Risk Score</th>
               </tr>
@@ -275,7 +275,7 @@ export default function ExecutiveDashboard() {
                     {d.total_p1}
                   </td>
                   <td>{formatCurrency(d.total_revenue_impact)}</td>
-                  <td>{formatNumber(d.total_patient_impact)}</td>
+                  <td>{formatNumber(d.total_user_impact)}</td>
                   <td style={{ color: Number(d.total_sla_breaches) > 0 ? 'var(--color-critical)' : 'inherit' }}>
                     {d.total_sla_breaches}
                   </td>

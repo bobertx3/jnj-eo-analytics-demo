@@ -177,7 +177,7 @@ export default function ServiceRiskRanking() {
                 <th>P1</th>
                 <th>Avg MTTR</th>
                 <th>Revenue Impact</th>
-                <th>Patient Impact</th>
+                <th>User Impact</th>
                 <th>Health Score</th>
                 <th>Error Rate</th>
                 <th>Risky Changes</th>
@@ -219,7 +219,7 @@ export default function ServiceRiskRanking() {
                     </td>
                     <td>{Number(s.avg_mttr_minutes).toFixed(0)}m</td>
                     <td>{formatCurrency(s.total_revenue_impact)}</td>
-                    <td>{formatNumber(s.total_patient_impact)}</td>
+                    <td>{formatNumber(s.total_user_impact)}</td>
                     <td style={{
                       color: Number(s.avg_health_score) < 50 ? 'var(--color-critical)' :
                              Number(s.avg_health_score) < 75 ? 'var(--color-medium)' : 'var(--color-low)',

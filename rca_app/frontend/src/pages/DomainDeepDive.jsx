@@ -295,7 +295,7 @@ export default function DomainDeepDive() {
                 <th>Blast</th>
                 <th>Pattern</th>
                 <th>Revenue</th>
-                <th>Patients</th>
+                <th>Users</th>
                 <th>SLA</th>
               </tr>
             </thead>
@@ -321,7 +321,7 @@ export default function DomainDeepDive() {
                     {inc.failure_pattern_name || '--'}
                   </td>
                   <td>{formatCurrency(inc.revenue_impact_usd)}</td>
-                  <td>{inc.patient_impact_count}</td>
+                  <td>{inc.affected_user_count}</td>
                   <td style={{ color: inc.sla_breached === 'true' ? 'var(--color-critical)' : 'inherit' }}>
                     {inc.sla_breached === 'true' ? 'YES' : 'No'}
                   </td>

@@ -134,7 +134,7 @@ To make things worse, because the problem looked different depending on where yo
 > *Then there's a recurring issue: 'ML Training Pipeline GPU Memory Leak.' In simple terms, the system that trains AI models has a memory problem — it slowly uses up all available memory over a 48-hour training run until it crashes. This happens every 1-2 days, each time costing $37,500 when 25 data scientists lose an hour of work waiting for the restart."*
 
 **What to point at:**
-- SageMaker pattern: P1 count, SLA breaches, $2.25M total impact
+- SageMaker pattern: P1 count, SLA breaches, $450K total impact
 - ML Training pattern: recurring every 1.7 days, 4 incidents
 - Click "AI Analysis" to show the root cause chain linking the network change to the outage
 
@@ -247,8 +247,8 @@ To make things worse, because the problem looked different depending on where yo
 | Total shipments delayed | 1,417 | silver_incidents |
 | Total ServiceNow tickets | 218 | silver_incidents |
 | Duplicate tickets | 124 (57%) | silver_incidents |
-| #1 pattern (SAP overload) | 9 occurrences, $40.8M impact, worsening | gold_root_cause_patterns |
-| #2 pattern (inventory API timeout) | 5 P1s, $37.5M impact, 5 SLA breaches | gold_root_cause_patterns |
+| #1 pattern (SAP overload) | 9 occurrences, ~$10.2M impact, worsening | gold_root_cause_patterns |
+| #2 pattern (inventory API timeout) | 1 P1, ~$7.5M impact, 1 SLA breach | gold_root_cause_patterns |
 | #1 risk service | erp-sap-connector (score 1,198) | gold_service_risk_ranking |
 | Worst MTTR | sagemaker-inference-endpoint (177 min) | silver_incidents |
 | Highest duplicate ticket rate | shared-infrastructure (80%) | silver_servicenow_correlation |

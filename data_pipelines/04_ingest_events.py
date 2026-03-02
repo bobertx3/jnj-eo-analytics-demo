@@ -26,7 +26,7 @@
 # MAGIC   CAST(sla_breached AS BOOLEAN) as sla_breached,
 # MAGIC   business_unit,
 # MAGIC   CAST(affected_user_count AS INT) as affected_user_count,
-# MAGIC   CAST(affected_user_count AS INT) as patient_impact_count,
+# MAGIC   CAST(affected_user_count AS INT) as user_impact_count,
 # MAGIC   affected_roles,
 # MAGIC   CAST(productivity_loss_hours AS DOUBLE) as productivity_loss_hours,
 # MAGIC   CAST(productivity_loss_usd AS DOUBLE) as productivity_loss_usd,

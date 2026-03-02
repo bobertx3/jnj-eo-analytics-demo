@@ -91,8 +91,8 @@ def main():
       -- Business context
       i.business_unit,
       i.affected_user_count,
-      -- Backward-compatible alias used by legacy API/UI queries
-      i.affected_user_count as patient_impact_count,
+      -- Backward-compatible alias
+      i.affected_user_count as user_impact_count,
       i.affected_roles,
       i.productivity_loss_hours,
       i.productivity_loss_usd,

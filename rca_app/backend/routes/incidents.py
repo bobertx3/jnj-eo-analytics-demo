@@ -19,7 +19,7 @@ async def get_incident_summary():
       SUM(CASE WHEN severity = 'P3' THEN 1 ELSE 0 END) as p3_count,
       ROUND(AVG(mttr_minutes), 1) as avg_mttr,
       ROUND(SUM(revenue_impact_usd), 2) as total_revenue_impact,
-      SUM(patient_impact_count) as total_patient_impact,
+      SUM(affected_user_count) as total_user_impact,
       SUM(CASE WHEN sla_breached THEN 1 ELSE 0 END) as total_sla_breaches,
       ROUND(AVG(blast_radius), 1) as avg_blast_radius
     FROM {CATALOG}.{SCHEMA}.silver_incidents
@@ -76,7 +76,7 @@ async def get_incident_timeline(
       SUM(CASE WHEN severity = 'P2' THEN 1 ELSE 0 END) as p2_count,
       SUM(CASE WHEN severity = 'P3' THEN 1 ELSE 0 END) as p3_count,
       ROUND(SUM(revenue_impact_usd), 2) as daily_revenue_impact,
-      SUM(patient_impact_count) as daily_patient_impact,
+      SUM(affected_user_count) as daily_user_impact,
       ROUND(AVG(mttr_minutes), 1) as avg_mttr
     FROM {CATALOG}.{SCHEMA}.silver_incidents
     WHERE created_at >= current_date() - INTERVAL {days} DAYS
@@ -108,7 +108,7 @@ async def get_recent_incidents(limit: int = Query(default=20, ge=1, le=100)):
       failure_pattern_id,
       failure_pattern_name,
       revenue_impact_usd,
-      patient_impact_count,
+      affected_user_count,
       sla_breached,
       correlated_alert_count,
       impact_score
@@ -131,7 +131,7 @@ async def get_incidents_by_service():
       ROUND(AVG(mttr_minutes), 1) as avg_mttr,
       ROUND(AVG(blast_radius), 1) as avg_blast_radius,
       ROUND(SUM(revenue_impact_usd), 2) as total_revenue_impact,
-      SUM(patient_impact_count) as total_patient_impact
+      SUM(affected_user_count) as total_user_impact
     FROM {CATALOG}.{SCHEMA}.silver_incidents
     GROUP BY root_service, domain
     ORDER BY incident_count DESC
@@ -197,7 +197,7 @@ async def get_incident_detail(incident_id: str):
       environment,
       region,
       revenue_impact_usd,
-      patient_impact_count,
+      affected_user_count,
       sla_breached,
       business_unit,
       affected_user_count,

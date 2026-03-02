@@ -54,7 +54,7 @@ export default function RootCauseIntelligence() {
     mttr: Math.max(...patternList.map(p => Number(p.avg_mttr_minutes) || 0), 1),
     blast: Math.max(...patternList.map(p => Number(p.avg_blast_radius) || 0), 1),
     revenue: Math.max(...patternList.map(p => Number(p.total_revenue_impact) || 0), 1),
-    patient: Math.max(...patternList.map(p => Number(p.total_patient_impact) || 0), 1),
+    user: Math.max(...patternList.map(p => Number(p.total_user_impact) || 0), 1),
     sla: Math.max(...patternList.map(p => Number(p.sla_breach_count) || 0), 1),
   };
 
@@ -63,7 +63,7 @@ export default function RootCauseIntelligence() {
     { metric: 'MTTR', value: ((Number(selectedPattern.avg_mttr_minutes) || 0) / maxValues.mttr) * 100 },
     { metric: 'Blast Radius', value: ((Number(selectedPattern.avg_blast_radius) || 0) / maxValues.blast) * 100 },
     { metric: 'Revenue', value: ((Number(selectedPattern.total_revenue_impact) || 0) / maxValues.revenue) * 100 },
-    { metric: 'Patient Impact', value: ((Number(selectedPattern.total_patient_impact) || 0) / maxValues.patient) * 100 },
+    { metric: 'User Impact', value: ((Number(selectedPattern.total_user_impact) || 0) / maxValues.user) * 100 },
     { metric: 'SLA Breaches', value: ((Number(selectedPattern.sla_breach_count) || 0) / maxValues.sla) * 100 },
   ] : [];
 
@@ -142,7 +142,7 @@ export default function RootCauseIntelligence() {
                       <TrendBadge trend={p.trend_direction} />
                       <span>{p.occurrence_count}x occurrences</span>
                       <span>{formatCurrency(p.total_revenue_impact)}</span>
-                      <span>{formatNumber(p.total_patient_impact)} patients</span>
+                      <span>{formatNumber(p.total_user_impact)} users</span>
                     </div>
                   </div>
                   <div style={{
@@ -195,8 +195,8 @@ export default function RootCauseIntelligence() {
                     <strong>{formatCurrency(selectedPattern.total_revenue_impact)}</strong>
                   </div>
                   <div>
-                    <span style={{ color: 'var(--color-text-muted)' }}>Patients:</span>{' '}
-                    <strong>{formatNumber(selectedPattern.total_patient_impact)}</strong>
+                    <span style={{ color: 'var(--color-text-muted)' }}>Users:</span>{' '}
+                    <strong>{formatNumber(selectedPattern.total_user_impact)}</strong>
                   </div>
                   <div>
                     <span style={{ color: 'var(--color-text-muted)' }}>SLA Breaches:</span>{' '}
