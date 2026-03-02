@@ -207,6 +207,34 @@ async def get_service_topology():
     }
 
 
+@router.get("/metrics-window")
+async def get_metrics_window(
+    service: str = Query(...),
+    start: str = Query(...),
+    end: str = Query(...),
+):
+    """Get hourly metrics for a service within a time window (for incident correlation)."""
+    rows = execute_query(f"""
+    SELECT
+      DATE_TRUNC('hour', event_timestamp) AS hour_ts,
+      DATE_FORMAT(DATE_TRUNC('hour', event_timestamp), 'MM-dd HH:mm') AS hour_label,
+      ROUND(MAX(CASE WHEN metric_name='system.cpu.utilization' THEN metric_value END), 1) AS cpu_pct,
+      ROUND(MAX(CASE WHEN metric_name='system.memory.utilization' THEN metric_value END), 1) AS mem_pct,
+      ROUND(MAX(CASE WHEN metric_name='http.server.active_requests' THEN metric_value END), 0) AS active_requests,
+      ROUND(
+        SUM(CASE WHEN metric_name='http.server.request.duration' THEN histogram_sum END)
+        / NULLIF(SUM(CASE WHEN metric_name='http.server.request.duration' THEN histogram_count END), 0),
+      1) AS avg_latency_ms
+    FROM {CATALOG}.{SCHEMA}.bronze_metrics
+    WHERE service_name = '{service}'
+      AND event_timestamp >= '{start}'
+      AND event_timestamp <= '{end}'
+    GROUP BY DATE_TRUNC('hour', event_timestamp)
+    ORDER BY hour_ts
+    """)
+    return rows
+
+
 @router.get("/{service_name}/incidents")
 async def get_service_incidents(service_name: str, limit: int = Query(default=20)):
     """Get incidents where a service was root cause or impacted."""

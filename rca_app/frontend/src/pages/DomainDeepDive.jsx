@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
   BarChart, Bar, Cell, Legend,
-  LineChart, Line
+  LineChart, Line, ReferenceArea
 } from 'recharts';
 import { Layers, Server, AppWindow, Wifi, ChevronDown } from 'lucide-react';
 import { useApi, formatNumber, formatCurrency, formatDate, formatDateTime } from '../hooks/useApi';
@@ -28,6 +28,53 @@ export default function DomainDeepDive() {
   const { data: incidentDetail, loading: incidentDetailLoading } = useApi(
     selectedIncidentId ? `/api/incidents/${selectedIncidentId}` : null
   );
+
+  // Metrics window endpoint: 12h before incident start → resolved_at (or +12h if unresolved)
+  const metricsEndpoint = useMemo(() => {
+    if (!incidentDetail?.root_service || !incidentDetail?.created_at) return null;
+    const created = new Date(incidentDetail.created_at);
+    const start = new Date(created.getTime() - 12 * 60 * 60 * 1000).toISOString();
+    const end = incidentDetail.resolved_at
+      ? new Date(new Date(incidentDetail.resolved_at).getTime() + 12 * 60 * 60 * 1000).toISOString()
+      : new Date(created.getTime() + 24 * 60 * 60 * 1000).toISOString();
+    return `/api/services/metrics-window?service=${encodeURIComponent(incidentDetail.root_service)}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
+  }, [incidentDetail]);
+
+  const { data: metricsData, loading: metricsLoading } = useApi(metricsEndpoint);
+
+  // Find the hour_labels that bound the incident window for ReferenceArea
+  const incidentWindowLabels = useMemo(() => {
+    if (!metricsData?.length || !incidentDetail?.created_at) return null;
+    const created = new Date(incidentDetail.created_at);
+    const resolved = incidentDetail.resolved_at ? new Date(incidentDetail.resolved_at) : null;
+    // Floor to hour
+    const floorHour = (d) => {
+      const f = new Date(d);
+      f.setMinutes(0, 0, 0);
+      return f;
+    };
+    const startHour = floorHour(created);
+    const endHour = resolved ? floorHour(new Date(resolved.getTime() + 3600000)) : floorHour(new Date(created.getTime() + 3600000));
+    // Find matching labels
+    const fmt = (d) => {
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const hh = String(d.getHours()).padStart(2, '0');
+      return `${mm}-${dd} ${hh}:00`;
+    };
+    return { x1: fmt(startHour), x2: fmt(endHour) };
+  }, [metricsData, incidentDetail]);
+
+  const metricsChartData = useMemo(() => {
+    if (!metricsData) return [];
+    return metricsData.map(row => ({
+      label: row.hour_label,
+      cpu_pct: row.cpu_pct != null ? Number(row.cpu_pct) : null,
+      mem_pct: row.mem_pct != null ? Number(row.mem_pct) : null,
+      active_requests: row.active_requests != null ? Number(row.active_requests) : null,
+      avg_latency_ms: row.avg_latency_ms != null ? Number(row.avg_latency_ms) : null,
+    }));
+  }, [metricsData]);
 
   const currentDomain = (domainSummary || []).find(d => d.domain === selectedDomain) || {};
   const domainConfig = DOMAINS.find(d => d.key === selectedDomain);
@@ -397,6 +444,81 @@ export default function DomainDeepDive() {
                     ))}
                   </div>
                 </div>
+
+                {/* Metrics Charts */}
+                {metricsChartData.length > 0 && (
+                  <div style={{ marginTop: 16, marginBottom: 16 }}>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
+                      System Metrics ({incidentDetail.root_service})
+                    </div>
+
+                    {/* Chart 1: CPU & Memory */}
+                    <div style={{ marginBottom: 8 }}>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginBottom: 4 }}>CPU & Memory (%)</div>
+                      <ResponsiveContainer width="100%" height={120}>
+                        <LineChart data={metricsChartData} margin={{ top: 4, right: 8, bottom: 0, left: -10 }}>
+                          <XAxis dataKey="label" tick={{ fontSize: 8 }} interval="preserveStartEnd" />
+                          <YAxis domain={[0, 100]} tick={{ fontSize: 9 }} />
+                          <Tooltip content={<ChartTooltip />} />
+                          {incidentWindowLabels && (
+                            <ReferenceArea
+                              x1={incidentWindowLabels.x1}
+                              x2={incidentWindowLabels.x2}
+                              fill="#f8514920"
+                              stroke="#f85149"
+                              strokeDasharray="4 3"
+                            />
+                          )}
+                          <Line type="monotone" dataKey="cpu_pct" stroke="#f85149" name="CPU %" dot={false} strokeWidth={1.5} connectNulls />
+                          <Line type="monotone" dataKey="mem_pct" stroke="#bc8cff" name="Memory %" dot={false} strokeWidth={1.5} connectNulls />
+                          <Legend iconSize={8} wrapperStyle={{ fontSize: '0.7rem' }} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    {/* Chart 2: Latency & Active Requests */}
+                    <div style={{ marginBottom: 8 }}>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginBottom: 4 }}>Avg Latency (ms) & Active Requests</div>
+                      <ResponsiveContainer width="100%" height={120}>
+                        <LineChart data={metricsChartData} margin={{ top: 4, right: 8, bottom: 0, left: -10 }}>
+                          <XAxis dataKey="label" tick={{ fontSize: 8 }} interval="preserveStartEnd" />
+                          <YAxis yAxisId="left" tick={{ fontSize: 9 }} />
+                          <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 9 }} />
+                          <Tooltip content={<ChartTooltip />} />
+                          {incidentWindowLabels && (
+                            <ReferenceArea
+                              yAxisId="left"
+                              x1={incidentWindowLabels.x1}
+                              x2={incidentWindowLabels.x2}
+                              fill="#f8514920"
+                              stroke="#f85149"
+                              strokeDasharray="4 3"
+                            />
+                          )}
+                          <Line yAxisId="left" type="monotone" dataKey="avg_latency_ms" stroke="#58a6ff" name="Avg Latency (ms)" dot={false} strokeWidth={1.5} connectNulls />
+                          <Line yAxisId="right" type="monotone" dataKey="active_requests" stroke="#39d353" name="Active Requests" dot={false} strokeWidth={1.5} connectNulls />
+                          <Legend iconSize={8} wrapperStyle={{ fontSize: '0.7rem' }} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    {/* Incident window legend */}
+                    {incidentWindowLabels && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.68rem', color: 'var(--color-text-muted)' }}>
+                        <span style={{
+                          display: 'inline-block', width: 16, height: 10,
+                          border: '1.5px dashed #f85149', background: '#f8514920', borderRadius: 2,
+                        }} />
+                        Incident window ({formatDateTime(incidentDetail.created_at)} → {incidentDetail.resolved_at ? formatDateTime(incidentDetail.resolved_at) : 'unresolved'})
+                      </div>
+                    )}
+                  </div>
+                )}
+                {metricsLoading && (
+                  <div style={{ padding: '12px 0', fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+                    Loading metrics...
+                  </div>
+                )}
 
                 <div style={{ marginTop: 16 }}>
                   <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
