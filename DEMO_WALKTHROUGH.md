@@ -40,6 +40,8 @@ These are two independent failure modes that share one critical dependency: the 
 
 Click **Generate AI Analysis** on the SAP connector pattern to see the AI-generated root cause chain and remediation steps. The AI confirms the batch sync scheduling overlap and recommends staggering the sync window.
 
+![AI Analysis](images/ai-analysis.png)
+
 ---
 
 ## 3. Service Risk Ranking — Prioritize by Service
@@ -76,6 +78,8 @@ Switching to the Infrastructure domain: 11 incidents, $10.7M in revenue impact, 
 The services table within infrastructure confirms `erp-sap-connector` dominates with 9 incidents and $10.2M impact, followed by `auth-service` and `sagemaker-inference-endpoint`.
 
 Clicking any incident (e.g., INC-1027) opens a detail drawer that now includes **system metrics charts** — CPU, memory, latency, and active requests around the incident window. For the SAP connector incidents, you can see CPU spiking to 90%+ and active requests surging right before the incident fires — the system was already under stress before the incident was declared.
+
+![Incident Drawer with Metrics](images/incident-drawer-metrics.png)
 
 ---
 
