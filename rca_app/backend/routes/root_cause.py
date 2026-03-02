@@ -46,7 +46,8 @@ async def get_root_cause_patterns():
       recent_weekly_avg,
       previous_weekly_avg,
       priority_score,
-      avg_days_between_occurrences
+      avg_days_between_occurrences,
+      root_cause_explanation
     FROM {CATALOG}.{SCHEMA}.gold_root_cause_patterns
     ORDER BY priority_score DESC
     """)

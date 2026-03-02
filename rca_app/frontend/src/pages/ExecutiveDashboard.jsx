@@ -165,6 +165,20 @@ export default function ExecutiveDashboard() {
               <div style={{ marginTop: 8, fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
                 Root Service: <code>{topIssue.root_service}</code> | Priority Score: {Number.isFinite(topIssuePriority) ? topIssuePriority.toFixed(0) : '--'}
               </div>
+              {topIssue.root_cause_explanation && (
+                <div style={{
+                  marginTop: 10,
+                  padding: '10px 12px',
+                  fontSize: '0.82rem',
+                  lineHeight: 1.5,
+                  background: 'rgba(248, 81, 73, 0.06)',
+                  borderLeft: '3px solid var(--color-critical)',
+                  borderRadius: 'var(--radius-sm)',
+                }}>
+                  <strong style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Root Cause:</strong>{' '}
+                  {topIssue.root_cause_explanation}
+                </div>
+              )}
               <div style={{ marginTop: 8, maxWidth: 480 }}>
                 <InfoExpander title="How should I interpret Priority Score and Revenue Impact?" mode="hover">
                   <p style={{ marginTop: 8 }}>
