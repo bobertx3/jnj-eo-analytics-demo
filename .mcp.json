@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "databricks": {
-      "command": "y/.venv/bin/python",
-      "args": ["y/repo/databricks-mcp-server/run_server.py"],
+      "command": "/Users/robert.leach/.ai-dev-kit/.venv/bin/python",
+      "args": ["/Users/robert.leach/.ai-dev-kit/repo/databricks-mcp-server/run_server.py"],
       "defer_loading": true,
       "env": {"DATABRICKS_CONFIG_PROFILE": "DEFAULT"}
     }

@@ -6,6 +6,18 @@ variables:
     default: bx4
   schema:
     default: eo_analytics_plane
+  table:
+    default: ""
+  volume:
+    default: raw_landing
+  vs_index:
+    default: ""
+  app_name:
+    default: jnj-eo-analytics-demo
+  serving_endpoint:
+    default: databricks-claude-sonnet-4
+  databricks_token:
+    default: ""
   warehouse_id:
     default: 08381690ac2b0e1a
   genie_space_id:
@@ -22,16 +34,32 @@ resources:
   # ── Databricks App ─────────────────────────────────────────────────────────
   apps:
     jnj-eo-analytics-demo:
-      name: jnj-eo-analytics-demo
+      name: ${var.app_name}
       description: >
         Enterprise-Wide Root Cause Intelligence — correlating signals across
         domains and time to reveal systemic causes, not just incidents.
-      source_code_path: .
+      source_code_path: ./rca_app
       config:
         command:
           - python
           - app.py
         env:
+          - name: CATALOG
+            value: ${var.catalog}
+          - name: SCHEMA
+            value: ${var.schema}
+          - name: TABLE
+            value: ${var.table}
+          - name: VOLUME
+            value: ${var.volume}
+          - name: VS_INDEX
+            value: ${var.vs_index}
+          - name: APP_NAME
+            value: ${var.app_name}
+          - name: SERVING_ENDPOINT
+            value: ${var.serving_endpoint}
+          - name: DATABRICKS_TOKEN
+            value: ${var.databricks_token}
           - name: DATABRICKS_WAREHOUSE_ID
             value_from: sql-warehouse
           - name: GENIE_SPACE_ID
@@ -78,7 +106,7 @@ resources:
         - task_key: ingest_metrics
           description: "Read OTLP protobuf .pb files from volume → bronze_metrics"
           notebook_task:
-            notebook_path: /Shared/eo_analytics_plane/jnj-eo-analytics-demo/pipeline_tasks/ingest_metrics_pb
+            notebook_path: ./data_pipelines/01_ingest_metrics_pb.py
             source: WORKSPACE
           environment_key: Default
 
@@ -86,28 +114,28 @@ resources:
         - task_key: ingest_logs
           description: "Read JSONL logs from volume → bronze_logs"
           notebook_task:
-            notebook_path: /Shared/eo_analytics_plane/jnj-eo-analytics-demo/pipeline_tasks/ingest_logs
+            notebook_path: ./data_pipelines/02_ingest_logs.py
             source: WORKSPACE
           environment_key: Default
 
         - task_key: ingest_traces
           description: "Read JSON traces from volume → bronze_traces"
           notebook_task:
-            notebook_path: /Shared/eo_analytics_plane/jnj-eo-analytics-demo/pipeline_tasks/ingest_traces
+            notebook_path: ./data_pipelines/03_ingest_traces.py
             source: WORKSPACE
           environment_key: Default
 
         - task_key: ingest_events
           description: "Read incidents/alerts/topology JSONL from volume → bronze tables"
           notebook_task:
-            notebook_path: /Shared/eo_analytics_plane/jnj-eo-analytics-demo/pipeline_tasks/ingest_events
+            notebook_path: ./data_pipelines/04_ingest_events.py
             source: WORKSPACE
           environment_key: Default
 
         - task_key: ingest_network_flows
-          description: "Generate and ingest network flow data → bronze_network_flows"
+          description: "Ingest network flow .pb data from volume → bronze_network_flows"
           notebook_task:
-            notebook_path: /Shared/eo_analytics_plane/jnj-eo-analytics-demo/pipeline_tasks/ingest_network_flows
+            notebook_path: ./data_pipelines/05_ingest_network_flows_pb.py
             source: WORKSPACE
           environment_key: Default
 
@@ -121,7 +149,7 @@ resources:
             - task_key: ingest_events
             - task_key: ingest_network_flows
           notebook_task:
-            notebook_path: /Shared/eo_analytics_plane/jnj-eo-analytics-demo/pipeline_tasks/silver_transforms
+            notebook_path: ./data_pipelines/06_silver_transforms.py
             source: WORKSPACE
           environment_key: Default
 
@@ -131,7 +159,7 @@ resources:
           depends_on:
             - task_key: build_silver
           notebook_task:
-            notebook_path: /Shared/eo_analytics_plane/jnj-eo-analytics-demo/pipeline_tasks/gold_transforms
+            notebook_path: ./data_pipelines/07_gold_transforms.py
             source: WORKSPACE
           environment_key: Default
 
@@ -141,16 +169,8 @@ resources:
             client: "1"
 
 targets:
-  dev:
-    mode: development
+  default:
+    mode: production
     default: true
     workspace:
-      root_path: ~/eo_analytics_plane/${bundle.name}-dev
-
-  prod:
-    mode: production
-    workspace:
       root_path: /Workspace/Users/robert.leach@databricks.com/${bundle.name}
-    variables:
-      warehouse_id: 08381690ac2b0e1a
-      genie_space_id: 01f11276e8831838981f4c5743c5a3e3
