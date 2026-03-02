@@ -14,27 +14,33 @@ An enterprise-wide observability platform built on Databricks, ingesting OpenTel
 
 ## Quick Start
 
-### 1. Setup Data Pipeline
+### 1. Data setup (synthetic data)
+
+Raw data lives in a Unity Catalog volume. Use **data_setup/** to create the schema, volume, and generate synthetic data (only when the volume is empty):
 
 ```bash
-# Create schema and volume
-python setup/00_create_schema_and_volume.py
-
-# Generate 180 days of realistic HLS telemetry
-python setup/01_generate_raw_telemetry.py
-python setup/02_generate_protobuf_network_flows.py
-
-# Build Bronze tables (raw parsed)
-python setup/03_create_bronze_tables.py
-
-# Build Silver tables (enriched)
-python setup/04_create_silver_tables.py
-
-# Build Gold tables (analytics-ready)
-python setup/05_create_gold_tables.py
+python data_setup/00_create_schema_and_volume.py
+python data_setup/01_generate_raw_telemetry.py
+python data_setup/02_generate_protobuf_network_flows.py
 ```
 
-### 2. Run Locally
+See **data_setup/README.md** for details and how to add more synthetic data.
+
+### 2. Pipeline (volume → bronze → silver → gold)
+
+The **setup/** pipeline loads from the volume and builds the medallion layers and Genie:
+
+```bash
+python setup/03_create_bronze_tables.py   # volume → bronze
+python setup/04_create_silver_tables.py   # bronze → silver
+python setup/05_create_gold_tables.py     # silver → gold
+python setup/07_create_genie_space.py     # Genie space for Q&A
+python setup/08_grant_app_uc_permissions.py
+```
+
+See **setup/README.md** for the full pipeline and optional job deployment.
+
+### 3. Run Locally
 
 ```bash
 # Install backend
@@ -47,7 +53,7 @@ cd frontend && npm install && npm run build && cd ..
 DATABRICKS_PROFILE=hls python app.py
 ```
 
-### 3. Deploy to Databricks
+### 4. Deploy to Databricks
 
 ```bash
 databricks apps create enterprise-rca-intelligence --profile hls

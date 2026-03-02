@@ -234,7 +234,7 @@ for f in pb_files:
     print(f"  {f.split('/')[-1]}")
 
 if not pb_files:
-    raise Exception(f"No .pb files found at {METRICS_PATH}. Run setup/01_generate_raw_telemetry.py first.")
+    raise Exception(f"No .pb files found at {METRICS_PATH}. Run data_setup/01_generate_raw_telemetry.py first.")
 
 # COMMAND ----------
 

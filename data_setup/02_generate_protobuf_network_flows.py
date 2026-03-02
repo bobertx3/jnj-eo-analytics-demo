@@ -1,5 +1,5 @@
 """
-02_generate_protobuf_network_flows.py
+data_setup/02_generate_protobuf_network_flows.py
 Generates network flow telemetry as Protocol Buffer binary files.
 Uses a simple binary serialization that mirrors the .proto schema.
 Also uploads the .proto schema file to the volume.
@@ -21,6 +21,24 @@ SCHEMA = "eo_analytics_plane"
 VOLUME_PATH = f"/Volumes/{CATALOG}/{SCHEMA}/raw_landing"
 
 random.seed(42)
+
+
+def network_flows_volume_has_data(w):
+    """Return True if the network_flows subdir already contains any data files (not schema .proto)."""
+    try:
+        entries = list(w.files.list_directory_contents(f"{VOLUME_PATH}/network_flows"))
+    except Exception:
+        return False
+    for e in entries:
+        path = getattr(e, "path", None) or ""
+        name = path.rstrip("/").split("/")[-1]
+        if not name:
+            continue
+        if name.endswith(".proto"):
+            continue
+        if name.endswith(".pb"):
+            return True
+    return False
 
 # Service IP mapping
 SERVICE_IPS = {
@@ -179,6 +197,11 @@ def generate_flow_record(src_svc, dst_svc, ts, is_anomalous=False):
 
 def main():
     w = WorkspaceClient(profile=PROFILE)
+    if network_flows_volume_has_data(w):
+        print(f"Volume {VOLUME_PATH}/network_flows already contains data. Skipping generation to avoid overwriting.")
+        print("Delete or clear the network_flows subdir if you want to regenerate.")
+        return
+
     end_date = datetime(2026, 2, 25, tzinfo=timezone.utc)
     start_date = end_date - timedelta(days=30)
 

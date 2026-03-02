@@ -1,7 +1,7 @@
 """
 00_create_schema_and_volume.py
 Creates the Unity Catalog schema and volume for raw telemetry landing.
-Run with: python setup/00_create_schema_and_volume.py
+Run with: python data_setup/00_create_schema_and_volume.py
 """
 import os
 from databricks.sdk import WorkspaceClient

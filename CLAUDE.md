@@ -46,17 +46,23 @@ cd frontend && npm run build && cd ..
 DATABRICKS_PROFILE=DEFAULT python app.py
 ```
 
-## Data Pipeline Setup
+## Data setup vs pipeline
 
-The `setup/` directory contains numbered scripts (00-07) that must run in order to populate the Databricks tables. `setup/pipeline_tasks/` contains notebook versions of the same transforms for the Databricks Job.
+- **data_setup/** — Synthetic data only. Creates schema/volume and generates raw data into the volume (scripts skip if volume already has data). Add your own synthetic data scripts here. Run order: `00_create_schema_and_volume.py` → `01_generate_raw_telemetry.py` → `02_generate_protobuf_network_flows.py` (see data_setup/README.md).
+- **setup/** — Pipeline: load from volume → bronze → silver → gold, plus Genie and app permissions. Does not generate data; expects data in the volume. Run order: `03` (bronze) → `04` (silver) → `05` (gold) → `07` (Genie) → `08` (permissions). `setup/pipeline_tasks/` holds the job notebooks used by the Databricks Job.
 
 ```bash
-python setup/00_create_schema_and_volume.py    # Create catalog schema + volume
-python setup/01_generate_raw_telemetry.py      # Generate 30 days of synthetic OTLP data
-python setup/02_generate_protobuf_network_flows.py
+# Data: populate volume (only when empty)
+python data_setup/00_create_schema_and_volume.py
+python data_setup/01_generate_raw_telemetry.py
+python data_setup/02_generate_protobuf_network_flows.py
+
+# Pipeline: volume → bronze → silver → gold + Genie
 python setup/03_create_bronze_tables.py
 python setup/04_create_silver_tables.py
 python setup/05_create_gold_tables.py
+python setup/07_create_genie_space.py
+python setup/08_grant_app_uc_permissions.py
 ```
 
 ## Deployment

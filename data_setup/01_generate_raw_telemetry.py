@@ -1,5 +1,5 @@
 """
-01_generate_raw_telemetry.py
+data_setup/01_generate_raw_telemetry.py
 Generates realistic JnJ-style OpenTelemetry data organized by business unit:
   - OTLP Metrics (Protobuf .pb) -- 15 files, one per service batch
   - Structured Logs (JSONL) -- 12 files, ~15 days per file
@@ -25,6 +25,33 @@ PROFILE = os.environ.get("DATABRICKS_PROFILE", "DEFAULT")
 CATALOG = "jnj_eo_demo"
 SCHEMA = "eo_analytics_plane"
 VOLUME_PATH = f"/Volumes/{CATALOG}/{SCHEMA}/raw_landing"
+
+
+def volume_subdir_has_data(w, subdir_path, data_extensions=(".pb", ".jsonl", ".json")):
+    """Return True if the volume subdirectory contains any data files (not schema .proto)."""
+    try:
+        entries = list(w.files.list_directory_contents(subdir_path))
+    except Exception:
+        return False
+    for e in entries:
+        path = getattr(e, "path", None) or ""
+        name = path.rstrip("/").split("/")[-1]
+        if not name:
+            continue
+        if name.endswith(".proto"):
+            continue
+        if any(name.endswith(ext) for ext in data_extensions):
+            return True
+    return False
+
+
+def raw_volume_has_data(w):
+    """Return True if any raw telemetry subdir (metrics, logs, traces, events) already has data."""
+    for subdir in ("metrics", "logs", "traces", "events"):
+        if volume_subdir_has_data(w, f"{VOLUME_PATH}/{subdir}"):
+            return True
+    return False
+
 
 # ============================================================================
 # BUSINESS UNITS & SERVICE CATALOG  (JnJ-style)
@@ -1296,6 +1323,11 @@ def generate_events(start_date, end_date, w):
 
 def main():
     w = WorkspaceClient(profile=PROFILE)
+    if raw_volume_has_data(w):
+        print(f"Volume {VOLUME_PATH} already contains data. Skipping generation to avoid overwriting.")
+        print("Delete or clear the volume subdirs (metrics, logs, traces, events) if you want to regenerate.")
+        return
+
     end_date = datetime(2026, 2, 25, tzinfo=timezone.utc)
     start_date = end_date - timedelta(days=30)
 
