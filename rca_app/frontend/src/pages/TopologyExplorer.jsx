@@ -11,32 +11,10 @@ const DOMAIN_COLORS = {
   unknown: '#8b949e',
 };
 
-// Static topology layout positions (manually positioned for clarity)
-const NODE_POSITIONS = {
-  // Network layer (top)
-  'load-balancer':  { x: 400, y: 40 },
-  'dns-resolver':   { x: 600, y: 40 },
-  'vpn-gateway':    { x: 200, y: 40 },
-  // Application layer (middle)
-  'patient-portal':           { x: 150, y: 170 },
-  'ehr-api':                  { x: 350, y: 170 },
-  'fhir-api':                 { x: 550, y: 170 },
-  'auth-service':             { x: 750, y: 170 },
-  'clinical-decision-support':{ x: 150, y: 300 },
-  'pharmacy-service':         { x: 350, y: 300 },
-  'imaging-service':          { x: 550, y: 300 },
-  'notification-service':     { x: 750, y: 300 },
-  'hl7-gateway':              { x: 150, y: 430 },
-  'ml-inference-service':     { x: 350, y: 430 },
-  'terminology-service':      { x: 550, y: 430 },
-  'dicom-gateway':            { x: 750, y: 430 },
-  // Infrastructure layer (bottom)
-  'ehr-database':       { x: 200, y: 560 },
-  'auth-database':      { x: 400, y: 560 },
-  'drug-interaction-db':{ x: 600, y: 560 },
-  'message-queue':      { x: 350, y: 650 },
-  'pacs-storage':       { x: 550, y: 650 },
-};
+// Node positions are computed dynamically per-domain (network/application/infrastructure)
+// by the layout logic below. This map can optionally pin specific services to fixed
+// coordinates when a curated layout is desired.
+const NODE_POSITIONS = {};
 
 function getNodeColor(node) {
   const risk = Number(node.risk_score) || 0;

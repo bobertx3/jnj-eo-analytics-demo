@@ -93,44 +93,29 @@ async def get_domain_trend(
 @router.get("/{domain_name}/services")
 async def get_domain_services(domain_name: str):
     """Get services and their risk metrics for a specific domain."""
-    # Map domain name to service domains
-    domain_services = {
-        "application": [
-            "ehr-api", "patient-portal", "clinical-decision-support", "pharmacy-service",
-            "imaging-service", "fhir-api", "auth-service", "notification-service",
-            "ml-inference-service", "terminology-service"
-        ],
-        "infrastructure": [
-            "ehr-database", "auth-database", "drug-interaction-db", "message-queue", "pacs-storage"
-        ],
-        "network": [
-            "hl7-gateway", "dicom-gateway", "load-balancer", "dns-resolver", "vpn-gateway"
-        ],
-    }
-
-    services = domain_services.get(domain_name, [])
-    if not services:
-        return []
-
-    svc_list = ",".join([f"'{s}'" for s in services])
-
     rows = execute_query(f"""
+    WITH domain_svc AS (
+      SELECT DISTINCT root_service as service_name
+      FROM {CATALOG}.{SCHEMA}.silver_incidents
+      WHERE domain = '{domain_name}'
+        AND root_service IS NOT NULL
+    )
     SELECT
-      service_name,
-      risk_rank,
-      risk_score,
-      incident_count_as_root,
-      times_impacted_by_others,
-      p1_count,
-      avg_mttr_minutes,
-      total_revenue_impact,
-      total_affected_users as total_user_impact,
-      avg_health_score,
-      avg_error_rate,
-      risky_changes
-    FROM {CATALOG}.{SCHEMA}.gold_service_risk_ranking
-    WHERE service_name IN ({svc_list})
-    ORDER BY risk_score DESC
+      g.service_name,
+      g.risk_rank,
+      g.risk_score,
+      g.incident_count_as_root,
+      g.times_impacted_by_others,
+      g.p1_count,
+      g.avg_mttr_minutes,
+      g.total_revenue_impact,
+      g.total_affected_users as total_user_impact,
+      g.avg_health_score,
+      g.avg_error_rate,
+      g.risky_changes
+    FROM {CATALOG}.{SCHEMA}.gold_service_risk_ranking g
+    JOIN domain_svc ds ON g.service_name = ds.service_name
+    ORDER BY g.risk_score DESC
     """)
     return rows
 
