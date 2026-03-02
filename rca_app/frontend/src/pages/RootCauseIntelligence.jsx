@@ -173,6 +173,22 @@ export default function RootCauseIntelligence() {
                 <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginBottom: 12 }}>
                   Root Service: <code>{selectedPattern.root_service}</code>
                 </div>
+                {selectedPattern.root_cause_explanation && (
+                  <div style={{
+                    fontSize: '0.82rem',
+                    lineHeight: 1.5,
+                    marginBottom: 14,
+                    padding: '10px 12px',
+                    background: 'rgba(248, 81, 73, 0.06)',
+                    borderLeft: '3px solid var(--color-critical)',
+                    borderRadius: 'var(--radius-sm)',
+                  }}>
+                    <div style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--color-critical)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>
+                      Root Cause
+                    </div>
+                    {selectedPattern.root_cause_explanation}
+                  </div>
+                )}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: '0.8rem' }}>
                   <div>
                     <span style={{ color: 'var(--color-text-muted)' }}>Occurrences:</span>{' '}
@@ -180,11 +196,11 @@ export default function RootCauseIntelligence() {
                   </div>
                   <div>
                     <span style={{ color: 'var(--color-text-muted)' }}>Avg MTTR:</span>{' '}
-                    <strong>{selectedPattern.avg_mttr_minutes}m</strong>
+                    <strong>{Math.round(Number(selectedPattern.avg_mttr_minutes))}m</strong>
                   </div>
                   <div>
                     <span style={{ color: 'var(--color-text-muted)' }}>P95 MTTR:</span>{' '}
-                    <strong>{selectedPattern.p95_mttr_minutes}m</strong>
+                    <strong>{Math.round(Number(selectedPattern.p95_mttr_minutes))}m</strong>
                   </div>
                   <div>
                     <span style={{ color: 'var(--color-text-muted)' }}>Max Blast:</span>{' '}
@@ -204,7 +220,7 @@ export default function RootCauseIntelligence() {
                   </div>
                   <div>
                     <span style={{ color: 'var(--color-text-muted)' }}>Recurrence:</span>{' '}
-                    <strong>~{selectedPattern.avg_days_between_occurrences}d</strong>
+                    <strong>~{Math.round(Number(selectedPattern.avg_days_between_occurrences))}d</strong>
                   </div>
                 </div>
               </div>
