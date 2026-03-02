@@ -2,9 +2,83 @@
 
 ## System Overview
 
-Enterprise Root Cause Intelligence is a full-stack **Databricks App** that ingests OpenTelemetry signals (metrics, logs, traces, events, network flows) across infrastructure, application, and network domains, builds a Bronze/Silver/Gold medallion data model, and exposes an interactive React dashboard with AI-powered root cause analysis. Built for a JnJ Enterprise Observability demo targeting healthcare/HLS environments.
+Enterprise Root Cause Intelligence is a full-stack **Databricks App** that ingests OpenTelemetry signals (metrics, logs, traces, events, network flows) across infrastructure, application, and network domains, builds a Bronze/Silver/Gold medallion data model, and exposes an interactive React dashboard with AI-powered root cause analysis. Built for a JnJ Enterprise Observability demo targeting life sciences (HLS) environments.
 
 The system has three major parts: a **setup pipeline** that creates a Unity Catalog schema, generates synthetic data, and builds the medallion tables; a **data pipeline** (Databricks Job) that runs the same Bronze → Silver → Gold transforms on a schedule; and a **web application** (FastAPI + React) that queries the enriched tables and renders executive dashboards with AI-powered analysis.
+
+> **Important assumption**: This demo starts with data already landed in a Unity Catalog Volume (object storage). In a production deployment, telemetry data would flow from operational observability tools into S3/ADLS/GCS via the ingestion patterns described below, then be picked up by the Bronze ingestion layer.
+
+---
+
+## Data Ingestion Patterns (Operational → Analytical)
+
+The analytical plane in this demo consumes five signal types: **metrics**, **logs**, **traces**, **events** (incidents/alerts/changes), and **network flows**. In production, these signals originate from operational observability tools (Prometheus/VictoriaMetrics, Grafana Loki, Splunk, Kafka, ClickHouse, etc.) and must be landed in object storage before the medallion pipeline can process them.
+
+The patterns below show the recommended architectures for bridging the **Operational Plane** (real-time alerting and dashboards) to the **Analytical Plane** (Databricks — correlation, root cause analysis, business impact). All patterns target **< 5 minute SLA** and prioritize durable, replayable file landing over direct API coupling.
+
+### VictoriaMetrics → Metrics
+
+![VictoriaMetrics Patterns](arch/page-08.png)
+
+**Signal**: Time-series metrics (CPU, memory, latency, error rates, custom business metrics)
+
+VictoriaMetrics exposes two extraction paths. The **recommended** approach uses the `/api/v1/export` endpoint to extract raw series as CSV or JSONL files landed directly into S3. This avoids the aggregation and time-alignment overhead of PromQL `query_range` and produces deterministic, replayable exports. Alternatively, TSDB blocks (written by VictoriaMetrics or shipped via a Thanos-style exporter) can be landed in S3 and translated to Delta.
+
+**Key benefit**: Operational isolation — the analytical pipeline reads from S3, not from VictoriaMetrics directly, so analytical workloads never affect operational query performance.
+
+### Grafana Loki → Logs
+
+![Grafana Loki Patterns](arch/page-09.png)
+
+**Signal**: Structured and unstructured logs (application logs, infrastructure events, audit trails)
+
+Several ingestion paths exist for Loki-managed logs. The **recommended** approach is LogQL Export — scheduled queries that extract enriched log batches to S3 as JSON, since Promtail-based enrichment (labels, parsing) is preserved. The **best alternative** is OTel Collector dual-write: the collector sends logs to both Loki (for real-time operational use) and S3/JSON (for analytical ingestion), keeping Loki as the operational system of record while producing analytics-ready files. A Databricks ZeroBus OTLP endpoint is also available as a direct-ingest alternative.
+
+**Key benefit**: Loki's chunk-based storage requires translation before analytics use; landing enriched exports in S3 decouples retention and query patterns between operational and analytical workloads.
+
+### Kafka → Events & Streaming Telemetry
+
+![Kafka Patterns](arch/page-10.png)
+
+**Signal**: Incident events, alert events, topology changes, real-time telemetry streams
+
+Kafka acts as the backbone for event-driven observability data. The **recommended** pattern uses the Kafka S3 Sink Connector to land Parquet files in S3, which Databricks picks up via Auto Loader for incremental ingestion. For lower-latency requirements, Databricks Structured Streaming can consume directly from Kafka topics, though this creates a runtime dependency on Kafka availability. ZeroBus offers a Kafka-alternative ingestion path where producers send directly to Databricks via REST/gRPC.
+
+**Key benefit**: The S3 sink provides durability, replay safety, and rebuild capability — if the analytical pipeline fails, data is not lost and can be reprocessed from the landing zone.
+
+### ClickHouse → Pre-aggregated Analytics
+
+![ClickHouse Patterns](arch/page-11.png)
+
+**Signal**: Pre-aggregated OLAP queries, materialized views, historical rollups
+
+ClickHouse is used for columnar OLAP workloads in some observability stacks. The **recommended** pattern exports Parquet files to S3, then ingests via Databricks Auto Loader. An alternative JDBC pull pattern is available for simpler setups but creates runtime coupling. The Parquet export path scales better for large historical datasets and preserves ClickHouse's columnar efficiency through the transfer.
+
+**Key benefit**: Object storage landing enables replay and decoupling — ClickHouse can be upgraded, migrated, or temporarily unavailable without affecting the analytical pipeline.
+
+### Splunk → Logs, Metrics & Events
+
+![Splunk Patterns](arch/page-12.png)
+
+**Signal**: Splunk Enterprise logs (via SPL), Splunk Observability Cloud metrics/traces/events (via REST APIs)
+
+Splunk environments offer multiple extraction paths. For **Splunk Enterprise**, scheduled SPL searches export time-bounded result files (CSV/JSON) to S3 — this is the recommended bulk extraction method. For **Splunk Observability Cloud**, REST APIs (`/v2/metric`, `/v2/dimension`, `/v2/timeserieswindow`, `/v2/detector`, `/v2/event`) provide targeted retrieval but are optimized for operational queries, not bulk export. The **recommended** approach is OTel Collector dual-write to S3 for durable analytics ingestion; use SPL export for Splunk Enterprise bulk extraction and REST APIs only for targeted retrieval.
+
+**Key benefit**: Object storage landing provides replay capability, backfill safety, and analytical isolation without stressing the Splunk query plane.
+
+### How This Maps to the Demo
+
+In this demo, all five signal types are represented by synthetic data generated by the setup pipeline and landed in the Unity Catalog Volume (`raw_landing/`). The mapping to production sources would be:
+
+| Signal Type | Demo Data | Production Source(s) |
+|-------------|-----------|---------------------|
+| Metrics | `raw_landing/metrics/*.pb` (OTLP protobuf) | VictoriaMetrics `/api/v1/export` → S3, or OTel Collector → S3 |
+| Logs | `raw_landing/logs/*.jsonl` | Grafana Loki LogQL export → S3, or OTel Collector dual-write → S3 |
+| Traces | `raw_landing/traces/*.json` | OTel Collector → S3 (JSON/Parquet), or Splunk Observability Cloud API |
+| Events | `raw_landing/events/*.jsonl` (incidents, alerts, changes) | Kafka S3 sink → S3 (Parquet), ServiceNow/PagerDuty webhooks → Kafka → S3 |
+| Network flows | `raw_landing/network_flows/*.pb` (custom binary) | Network flow collectors → Kafka → S3, or ClickHouse export → S3 |
+
+The Bronze ingestion layer is format-aware — it includes custom protobuf decoders for metrics and network flows, Spark SQL for JSONL/JSON, and can be extended to consume Parquet from Auto Loader when connected to real operational pipelines.
 
 ---
 
@@ -91,7 +165,7 @@ The system has three major parts: a **setup pipeline** that creates a Unity Cata
 | Route | Page Component | Key Visualizations |
 |-------|---------------|-------------------|
 | `/` | ExecutiveDashboard | KPI stat cards, incident timeline (AreaChart), domain pie chart, ticket noise table |
-| `/root-cause` | RootCauseIntelligence | Priority bar chart, 6-axis radar chart (frequency/MTTR/blast/revenue/patient/SLA), AI analysis panel |
+| `/root-cause` | RootCauseIntelligence | Priority bar chart, 6-axis radar chart (frequency/MTTR/blast/revenue/user impact/SLA), AI analysis panel |
 | `/service-risk` | ServiceRiskRanking | Risk score bars, incidents-vs-revenue scatter plot, health score line chart |
 | `/change-correlation` | ChangeCorrelation | Changes+incidents timeline overlay (ComposedChart), risky change types bar chart, correlation table |
 | `/domain-deep-dive` | DomainDeepDive | Domain selector tiles, weekly trend area chart, service risk bars, incident detail panel |
