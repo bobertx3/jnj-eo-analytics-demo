@@ -77,6 +77,106 @@ resources:
 
   # ── Pipeline Job ───────────────────────────────────────────────────────────
   jobs:
+    jnj-eo-analytics-demo-setup:
+      name: jnj-eo-analytics-demo-setup
+      description: >
+        Initializes schema/volume, loads static volume data, generates raw data
+        only when needed, then builds bronze → silver → gold and app permissions.
+
+      tags:
+        project: jnj-eo-analytics-demo
+        cost_center: CC-78432
+        manager: robert.leach@jnj.com
+        owner: hls-platform-engineering
+        job_type: setup
+
+      max_concurrent_runs: 1
+
+      queue:
+        enabled: true
+
+      schedule:
+        quartz_cron_expression: "0 0 3 * * ?"
+        timezone_id: UTC
+        pause_status: PAUSED
+
+      tasks:
+        - task_key: create_schema_and_volume
+          description: "Create UC schema and raw_landing volume"
+          spark_python_task:
+            python_file: ./setup_pipeline/00_create_schema_and_volume.py
+          environment_key: Default
+
+        - task_key: load_static_data
+          description: "Upload repo static_data into UC volume"
+          depends_on:
+            - task_key: create_schema_and_volume
+          spark_python_task:
+            python_file: ./setup_pipeline/00b_load_static_data.py
+          environment_key: Default
+
+        - task_key: generate_raw_telemetry
+          description: "Generate metrics/logs/traces/events (skips if present)"
+          depends_on:
+            - task_key: load_static_data
+          spark_python_task:
+            python_file: ./setup_pipeline/01_generate_raw_telemetry.py
+          environment_key: Default
+
+        - task_key: generate_network_flows
+          description: "Generate network flow .pb files (skips if present)"
+          depends_on:
+            - task_key: load_static_data
+          spark_python_task:
+            python_file: ./setup_pipeline/02_generate_protobuf_network_flows.py
+          environment_key: Default
+
+        - task_key: create_bronze_tables
+          description: "Build bronze layer from raw_landing volume"
+          depends_on:
+            - task_key: generate_raw_telemetry
+            - task_key: generate_network_flows
+          spark_python_task:
+            python_file: ./setup_pipeline/03_create_bronze_tables.py
+          environment_key: Default
+
+        - task_key: create_silver_tables
+          description: "Build silver layer from bronze"
+          depends_on:
+            - task_key: create_bronze_tables
+          spark_python_task:
+            python_file: ./setup_pipeline/04_create_silver_tables.py
+          environment_key: Default
+
+        - task_key: create_gold_tables
+          description: "Build gold layer from silver"
+          depends_on:
+            - task_key: create_silver_tables
+          spark_python_task:
+            python_file: ./setup_pipeline/05_create_gold_tables.py
+          environment_key: Default
+
+        - task_key: create_genie_space
+          description: "Create Genie Space for NLQ"
+          depends_on:
+            - task_key: create_gold_tables
+          spark_python_task:
+            python_file: ./setup_pipeline/06_create_genie_space.py
+          environment_key: Default
+
+        - task_key: grant_app_permissions
+          description: "Grant app principal table access"
+          depends_on:
+            - task_key: create_genie_space
+          spark_python_task:
+            python_file: ./setup_pipeline/07_grant_app_uc_permissions.py
+          environment_key: Default
+
+      environments:
+        - environment_key: Default
+          spec:
+            client: "1"
+
     jnj-eo-analytics-demo-pipeline:
       name: jnj-eo-analytics-demo-pipeline
       description: >
