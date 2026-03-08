@@ -1,4 +1,4 @@
-# Demo Narrative — Enterprise Root Cause Intelligence
+# Enterprise Root Cause Intelligence - Solution Accelerator
 
 ![EO Solution Architecture](images/eo_solution_arch.png)
 
