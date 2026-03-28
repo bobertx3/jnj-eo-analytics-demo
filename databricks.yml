@@ -22,6 +22,12 @@ variables:
     default: 08381690ac2b0e1a
   genie_space_id:
     default: 01f11276e8831838981f4c5743c5a3e3
+  lakebase_host:
+    default: ep-spring-forest-d2gs5o2y.database.us-east-1.cloud.databricks.com
+  lakebase_database:
+    default: databricks_postgres
+  lakebase_instance_name:
+    default: jnj-eo-analytics-demo
 
 workspace:
   host: https://fevm-stable-classic-zso77x-bx3.cloud.databricks.com
@@ -64,6 +70,12 @@ resources:
             value_from: sql-warehouse
           - name: GENIE_SPACE_ID
             value: ${var.genie_space_id}
+          - name: LAKEBASE_HOST
+            value: ${var.lakebase_host}
+          - name: LAKEBASE_DATABASE
+            value: ${var.lakebase_database}
+          - name: LAKEBASE_INSTANCE_NAME
+            value: ${var.lakebase_instance_name}
           - name: NODE_ENV
             value: production
       resources:
@@ -170,6 +182,14 @@ resources:
             - task_key: create_genie_space
           spark_python_task:
             python_file: ./setup_pipeline/07_grant_app_uc_permissions.py
+          environment_key: Default
+
+        - task_key: setup_lakebase_sync
+          description: "Create Lakebase database and sync Delta tables"
+          depends_on:
+            - task_key: grant_app_permissions
+          spark_python_task:
+            python_file: ./setup_pipeline/08_setup_lakebase_sync.py
           environment_key: Default
 
       environments:

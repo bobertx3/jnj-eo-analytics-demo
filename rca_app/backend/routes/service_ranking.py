@@ -2,7 +2,7 @@
 Service Risk Ranking API routes.
 """
 from fastapi import APIRouter, Query
-from backend.db import execute_query, CATALOG, SCHEMA
+from backend.db import execute_query
 
 router = APIRouter(prefix="/api/services", tags=["services"])
 
@@ -10,7 +10,7 @@ router = APIRouter(prefix="/api/services", tags=["services"])
 @router.get("/risk-ranking")
 async def get_service_risk_ranking():
     """Get all services ranked by risk score."""
-    rows = execute_query(f"""
+    rows = execute_query("""
     SELECT
       service_name,
       risk_rank,
@@ -33,7 +33,7 @@ async def get_service_risk_ranking():
       avg_cpu_utilization,
       total_changes,
       risky_changes
-    FROM {CATALOG}.{SCHEMA}.gold_service_risk_ranking
+    FROM gold_service_risk_ranking
     ORDER BY risk_rank
     """)
     return rows
@@ -59,9 +59,9 @@ async def get_service_health_timeline(
       p1_incident_count,
       error_log_count,
       error_rate_pct
-    FROM {CATALOG}.{SCHEMA}.silver_service_health
+    FROM silver_service_health
     WHERE service_name = '{service}'
-      AND health_date >= current_date() - INTERVAL {days} DAYS
+      AND health_date >= CURRENT_DATE - INTERVAL '{days} days'
     ORDER BY health_date
     """)
     return rows
@@ -71,12 +71,12 @@ async def get_service_health_timeline(
 async def get_service_topology():
     """Get service dependency graph with risk annotations."""
     # Service nodes with risk and domain data derived from silver tables.
-    services = execute_query(f"""
+    services = execute_query("""
     WITH service_domain_candidates AS (
       SELECT
         root_service as service_name,
         LOWER(TRIM(domain)) as domain
-      FROM {CATALOG}.{SCHEMA}.silver_incidents
+      FROM silver_incidents
       WHERE root_service IS NOT NULL
         AND root_service != ''
         AND domain IS NOT NULL
@@ -85,7 +85,7 @@ async def get_service_topology():
       SELECT
         service as service_name,
         LOWER(TRIM(domain)) as domain
-      FROM {CATALOG}.{SCHEMA}.silver_alerts
+      FROM silver_alerts
       WHERE service IS NOT NULL
         AND service != ''
         AND domain IS NOT NULL
@@ -94,7 +94,7 @@ async def get_service_topology():
       SELECT
         service as service_name,
         LOWER(TRIM(domain)) as domain
-      FROM {CATALOG}.{SCHEMA}.silver_changes
+      FROM silver_changes
       WHERE service IS NOT NULL
         AND service != ''
         AND domain IS NOT NULL
@@ -135,14 +135,14 @@ async def get_service_topology():
       g.avg_health_score,
       g.total_revenue_impact,
       COALESCE(sd.domain, 'unknown') as domain
-    FROM {CATALOG}.{SCHEMA}.gold_service_risk_ranking g
+    FROM gold_service_risk_ranking g
     LEFT JOIN service_domains sd
       ON g.service_name = sd.service_name
     ORDER BY g.risk_rank
     """)
 
-    # Service dependency edges from network flows
-    edges = execute_query(f"""
+    # Service dependency edges from network flows + incident causation
+    edges = execute_query("""
     WITH network_edges AS (
       SELECT
         src_service,
@@ -153,32 +153,28 @@ async def get_service_topology():
         SUM(CASE WHEN connection_reset THEN 1 ELSE 0 END) as reset_count,
         SUM(CASE WHEN timeout THEN 1 ELSE 0 END) as timeout_count,
         SUM(retransmits) as total_retransmits
-      FROM {CATALOG}.{SCHEMA}.bronze_network_flows
+      FROM bronze_network_flows
       WHERE src_service != '' AND dst_service != ''
       GROUP BY src_service, dst_service
     ),
     incident_edges AS (
       SELECT
         root_service as src_service,
-        impacted_service as dst_service,
+        svc.value::text as dst_service,
         0 as network_flow_count,
         COUNT(*) as incident_link_count,
-        CAST(NULL AS DOUBLE) as avg_latency_us,
+        NULL::double precision as avg_latency_us,
         0 as reset_count,
         0 as timeout_count,
         0 as total_retransmits
-      FROM (
-        SELECT
-          root_service,
-          explode(impacted_services) as impacted_service
-        FROM {CATALOG}.{SCHEMA}.silver_incidents
-        WHERE root_service IS NOT NULL
-          AND impacted_services IS NOT NULL
-          AND size(impacted_services) > 0
-      )
-      WHERE impacted_service IS NOT NULL
-        AND root_service != impacted_service
-      GROUP BY root_service, impacted_service
+      FROM silver_incidents,
+        LATERAL jsonb_array_elements_text(impacted_services) AS svc(value)
+      WHERE root_service IS NOT NULL
+        AND impacted_services IS NOT NULL
+        AND jsonb_array_length(impacted_services) > 0
+        AND svc.value::text IS NOT NULL
+        AND root_service != svc.value::text
+      GROUP BY root_service, svc.value::text
     ),
     combined_edges AS (
       SELECT * FROM network_edges
@@ -217,15 +213,15 @@ async def get_metrics_window(
     rows = execute_query(f"""
     SELECT
       DATE_TRUNC('hour', event_timestamp) AS hour_ts,
-      DATE_FORMAT(DATE_TRUNC('hour', event_timestamp), 'MM-dd HH:mm') AS hour_label,
-      ROUND(MAX(CASE WHEN metric_name='system.cpu.utilization' THEN metric_value END), 1) AS cpu_pct,
-      ROUND(MAX(CASE WHEN metric_name='system.memory.utilization' THEN metric_value END), 1) AS mem_pct,
-      ROUND(MAX(CASE WHEN metric_name='http.server.active_requests' THEN metric_value END), 0) AS active_requests,
+      TO_CHAR(DATE_TRUNC('hour', event_timestamp), 'MM-DD HH24:MI') AS hour_label,
+      ROUND(MAX(CASE WHEN metric_name='system.cpu.utilization' THEN metric_value END)::numeric, 1) AS cpu_pct,
+      ROUND(MAX(CASE WHEN metric_name='system.memory.utilization' THEN metric_value END)::numeric, 1) AS mem_pct,
+      ROUND(MAX(CASE WHEN metric_name='http.server.active_requests' THEN metric_value END)::numeric, 0) AS active_requests,
       ROUND(
-        SUM(CASE WHEN metric_name='http.server.request.duration' THEN histogram_sum END)
-        / NULLIF(SUM(CASE WHEN metric_name='http.server.request.duration' THEN histogram_count END), 0),
+        (SUM(CASE WHEN metric_name='http.server.request.duration' THEN histogram_sum END)
+        / NULLIF(SUM(CASE WHEN metric_name='http.server.request.duration' THEN histogram_count END), 0))::numeric,
       1) AS avg_latency_ms
-    FROM {CATALOG}.{SCHEMA}.bronze_metrics
+    FROM bronze_metrics
     WHERE service_name = '{service}'
       AND event_timestamp >= '{start}'
       AND event_timestamp <= '{end}'
@@ -252,9 +248,9 @@ async def get_service_incidents(service_name: str, limit: int = Query(default=20
       revenue_impact_usd,
       affected_user_count,
       CASE WHEN root_service = '{service_name}' THEN 'root_cause' ELSE 'impacted' END as role
-    FROM {CATALOG}.{SCHEMA}.silver_incidents
+    FROM silver_incidents
     WHERE root_service = '{service_name}'
-       OR array_contains(impacted_services, '{service_name}')
+       OR impacted_services @> '"{service_name}"'::jsonb
     ORDER BY created_at DESC
     LIMIT {limit}
     """)
@@ -277,9 +273,9 @@ async def get_service_alerts(service_name: str, days: int = Query(default=30)):
       breach_magnitude_pct,
       is_incident_correlated,
       is_pre_incident_signal
-    FROM {CATALOG}.{SCHEMA}.silver_alerts
+    FROM silver_alerts
     WHERE service = '{service_name}'
-      AND fired_at >= current_date() - INTERVAL {days} DAYS
+      AND fired_at >= CURRENT_DATE - INTERVAL '{days} days'
     ORDER BY fired_at DESC
     LIMIT 50
     """)

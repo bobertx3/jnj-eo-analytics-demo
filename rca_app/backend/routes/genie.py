@@ -2,6 +2,9 @@
 Genie Space proxy routes.
 Proxies natural language queries to Databricks Genie Space API
 for the Enterprise RCA Intelligence Q&A.
+
+Note: Genie queries go through Databricks REST API (not Lakebase).
+Fallback SQL queries use Lakebase PostgreSQL via execute_query.
 """
 import os
 import time
@@ -9,7 +12,7 @@ import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
-from backend.db import get_workspace_host, get_oauth_token, execute_query, CATALOG, SCHEMA
+from backend.db import get_workspace_host, get_oauth_token, execute_query
 
 import aiohttp
 
@@ -159,14 +162,14 @@ async def _fallback_sql_answer(question: str):
 
     # Story 1: Supply chain / shipment delays
     if any(kw in q for kw in ["shipment", "supply chain", "delays in shipment", "shipping", "inventory"]):
-        rows = execute_query(f"""
+        rows = execute_query("""
         SELECT
           incident_id, title, severity, root_service, business_unit,
           created_at, mttr_minutes, revenue_impact_usd,
           shipments_delayed, affected_user_count,
           servicenow_ticket_count, servicenow_duplicate_tickets,
           downstream_impact_narrative, root_cause_explanation
-        FROM {CATALOG}.{SCHEMA}.silver_incidents
+        FROM silver_incidents
         WHERE business_unit = 'supply-chain'
           AND severity = 'P1'
         ORDER BY created_at DESC
@@ -190,14 +193,14 @@ async def _fallback_sql_answer(question: str):
 
     # Story 2: Digital surgery / data science productivity
     if any(kw in q for kw in ["data scientist", "digital surgery", "sagemaker", "productivity", "ml engineer"]):
-        rows = execute_query(f"""
+        rows = execute_query("""
         SELECT
           incident_id, title, severity, root_service, business_unit,
           created_at, mttr_minutes, revenue_impact_usd,
           productivity_loss_usd, affected_user_count,
           servicenow_ticket_count, servicenow_duplicate_tickets,
           downstream_impact_narrative, root_cause_explanation
-        FROM {CATALOG}.{SCHEMA}.silver_incidents
+        FROM silver_incidents
         WHERE business_unit = 'digital-surgery'
           AND severity = 'P1'
         ORDER BY created_at DESC
@@ -220,14 +223,14 @@ async def _fallback_sql_answer(question: str):
 
     # Duplicate tickets
     if any(kw in q for kw in ["duplicate", "servicenow", "tickets"]):
-        rows = execute_query(f"""
+        rows = execute_query("""
         SELECT
           failure_pattern_name,
           business_unit,
           SUM(servicenow_ticket_count) as total_tickets,
           SUM(servicenow_duplicate_tickets) as total_duplicates,
-          ROUND(SUM(servicenow_duplicate_tickets) * 100.0 / NULLIF(SUM(servicenow_ticket_count), 0), 1) as duplicate_pct
-        FROM {CATALOG}.{SCHEMA}.silver_servicenow_correlation
+          ROUND((SUM(servicenow_duplicate_tickets) * 100.0 / NULLIF(SUM(servicenow_ticket_count), 0))::numeric, 1) as duplicate_pct
+        FROM silver_servicenow_correlation
         GROUP BY failure_pattern_name, business_unit
         ORDER BY total_duplicates DESC
         LIMIT 10
@@ -237,7 +240,7 @@ async def _fallback_sql_answer(question: str):
 
     # Revenue / business impact
     if any(kw in q for kw in ["revenue", "business impact", "cost", "financial"]):
-        rows = execute_query(f"""
+        rows = execute_query("""
         SELECT
           business_unit,
           total_incidents,
@@ -248,7 +251,7 @@ async def _fallback_sql_answer(question: str):
           overall_duplicate_pct,
           total_productivity_loss,
           total_shipments_delayed
-        FROM {CATALOG}.{SCHEMA}.gold_business_impact_summary
+        FROM gold_business_impact_summary
         ORDER BY total_revenue_impact DESC
         """)
         answer = "Here is the business impact summary by business unit:"
@@ -256,7 +259,7 @@ async def _fallback_sql_answer(question: str):
 
     # Blast radius
     if any(kw in q for kw in ["blast radius", "most impacted", "cascading"]):
-        rows = execute_query(f"""
+        rows = execute_query("""
         SELECT
           failure_pattern_name,
           root_service,
@@ -266,7 +269,7 @@ async def _fallback_sql_answer(question: str):
           total_revenue_impact,
           all_impacted_services,
           root_cause_explanation
-        FROM {CATALOG}.{SCHEMA}.gold_root_cause_patterns
+        FROM gold_root_cause_patterns
         ORDER BY avg_blast_radius DESC
         LIMIT 10
         """)
@@ -274,13 +277,13 @@ async def _fallback_sql_answer(question: str):
         return GenieQueryResponse(answer=answer, data=rows)
 
     # Generic: recent P1 incidents
-    rows = execute_query(f"""
+    rows = execute_query("""
     SELECT
       incident_id, title, severity, root_service, business_unit,
       created_at, mttr_minutes, revenue_impact_usd,
       affected_user_count, downstream_impact_narrative,
       root_cause_explanation
-    FROM {CATALOG}.{SCHEMA}.silver_incidents
+    FROM silver_incidents
     WHERE severity = 'P1'
     ORDER BY created_at DESC
     LIMIT 10

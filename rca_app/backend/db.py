@@ -1,13 +1,15 @@
 """
-Database connection module for Databricks SQL Warehouse.
+Database connection module for Lakebase PostgreSQL (primary) and Databricks SQL Warehouse (Genie fallback).
 Supports both local development (with profile) and deployed App (with service principal).
 """
 import os
-import time
 import logging
 from typing import Optional
+from functools import cached_property
+
 from databricks.sdk import WorkspaceClient
-from databricks.sdk.service.sql import StatementState
+from sqlalchemy import create_engine, text, event
+from sqlalchemy.engine import Engine
 
 logger = logging.getLogger(__name__)
 
@@ -16,11 +18,19 @@ SCHEMA = os.environ.get("SCHEMA", "eo_analytics_plane")
 
 IS_DATABRICKS_APP = bool(os.environ.get("DATABRICKS_APP_NAME"))
 
+# Lakebase connection settings
+LAKEBASE_HOST = os.environ.get("LAKEBASE_HOST", "")
+LAKEBASE_DATABASE = os.environ.get("LAKEBASE_DATABASE", "databricks_postgres")
+LAKEBASE_INSTANCE_NAME = os.environ.get("LAKEBASE_INSTANCE_NAME", "jnj-eo-analytics-demo")
+
 
 def get_workspace_client() -> WorkspaceClient:
     """Get WorkspaceClient with proper auth for environment."""
     if IS_DATABRICKS_APP:
-        return WorkspaceClient()
+        try:
+            return WorkspaceClient(auth_type="oauth-m2m")
+        except Exception:
+            return WorkspaceClient()
     profile = os.environ.get("DATABRICKS_PROFILE", "DEFAULT")
     return WorkspaceClient(profile=profile)
 
@@ -47,15 +57,107 @@ def get_oauth_token() -> Optional[str]:
     return None
 
 
+# ── Lakebase PostgreSQL connection ───────────────────────────────────────────
+
+_engine: Optional[Engine] = None
+
+
+def _get_db_username() -> str:
+    """Get the Databricks identity username for DB auth."""
+    w = get_workspace_client()
+    if w.config.client_id:
+        return w.config.client_id
+    return w.current_user.me().user_name
+
+
+def _resolve_lakebase_host() -> str:
+    """Get Lakebase host from env or auto-discover from instance name."""
+    if LAKEBASE_HOST:
+        return LAKEBASE_HOST
+    w = get_workspace_client()
+    instance = w.database.get_database_instance(LAKEBASE_INSTANCE_NAME)
+    return instance.read_write_dns
+
+
+def _inject_credential(dialect, conn_rec, cargs, cparams):
+    """SQLAlchemy do_connect event: inject fresh OAuth token as password."""
+    w = get_workspace_client()
+    cred = w.database.generate_database_credential(
+        instance_names=[LAKEBASE_INSTANCE_NAME]
+    )
+    cparams["password"] = cred.token
+
+
+def get_engine() -> Engine:
+    """Get or create the SQLAlchemy engine for Lakebase PostgreSQL."""
+    global _engine
+    if _engine is not None:
+        return _engine
+
+    host = _resolve_lakebase_host()
+    username = _get_db_username()
+
+    url = f"postgresql+psycopg://{username}:@{host}:5432/{LAKEBASE_DATABASE}"
+    logger.info(f"Connecting to Lakebase PostgreSQL at {host}")
+
+    # Synced tables land in the 'eo_lakebase' schema in PostgreSQL
+    # (matching the UC schema used for synced table registration).
+    # Set search_path so unqualified table names resolve correctly.
+    engine = create_engine(
+        url,
+        pool_recycle=45 * 60,
+        pool_size=4,
+        pool_pre_ping=True,
+        connect_args={
+            "sslmode": "require",
+            "options": "-c search_path=eo_lakebase,public",
+        },
+    )
+    event.listen(engine, "do_connect", _inject_credential)
+
+    _engine = engine
+    return engine
+
+
+def execute_query(sql: str, params: dict = None) -> list[dict]:
+    """Execute SQL against Lakebase PostgreSQL and return results as list of dicts."""
+    engine = get_engine()
+
+    if params:
+        for key, value in params.items():
+            if isinstance(value, str):
+                sql = sql.replace(f":{key}", f"'{value}'")
+            else:
+                sql = sql.replace(f":{key}", str(value))
+
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text(sql))
+            columns = list(result.keys())
+            rows = []
+            for row in result:
+                record = {}
+                for i, col_name in enumerate(columns):
+                    val = row[i]
+                    record[col_name] = val
+                rows.append(record)
+            return rows
+    except Exception as e:
+        logger.error(f"Query execution error: {e}")
+        raise
+
+
+# ── SQL Warehouse connection (for Genie Space only) ─────────────────────────
+
 _warehouse_id_cache = None
 
+
 def get_warehouse_id() -> str:
-    """Find a running SQL warehouse."""
+    """Find a running SQL warehouse (used by Genie Space)."""
     global _warehouse_id_cache
     if _warehouse_id_cache:
         return _warehouse_id_cache
 
-    # Check env first (from app resource)
     env_wh = os.environ.get("DATABRICKS_WAREHOUSE_ID")
     if env_wh:
         _warehouse_id_cache = env_wh
@@ -63,7 +165,6 @@ def get_warehouse_id() -> str:
 
     w = get_workspace_client()
     warehouses = list(w.warehouses.list())
-    # Prefer serverless, then running
     for wh in warehouses:
         if wh.state and wh.state.value == "RUNNING" and wh.enable_serverless_compute:
             _warehouse_id_cache = wh.id
@@ -76,66 +177,3 @@ def get_warehouse_id() -> str:
         _warehouse_id_cache = warehouses[0].id
         return warehouses[0].id
     raise RuntimeError("No SQL warehouse found")
-
-
-def execute_query(sql: str, params: dict = None) -> list[dict]:
-    """Execute SQL and return results as list of dicts."""
-    w = get_workspace_client()
-    warehouse_id = get_warehouse_id()
-
-    # Parameter substitution (simple)
-    if params:
-        for key, value in params.items():
-            if isinstance(value, str):
-                sql = sql.replace(f":{key}", f"'{value}'")
-            else:
-                sql = sql.replace(f":{key}", str(value))
-
-    try:
-        resp = w.statement_execution.execute_statement(
-            warehouse_id=warehouse_id,
-            statement=sql,
-            wait_timeout="50s",
-            catalog=CATALOG,
-            schema=SCHEMA,
-        )
-
-        if resp.status and resp.status.state == StatementState.SUCCEEDED:
-            return _parse_result(resp)
-        elif resp.status and resp.status.state == StatementState.FAILED:
-            logger.error(f"Query failed: {resp.status.error}")
-            raise RuntimeError(f"Query failed: {resp.status.error}")
-        else:
-            # Poll for completion
-            stmt_id = resp.statement_id
-            for _ in range(30):
-                time.sleep(2)
-                status = w.statement_execution.get_statement(stmt_id)
-                if status.status.state == StatementState.SUCCEEDED:
-                    return _parse_result(status)
-                if status.status.state == StatementState.FAILED:
-                    raise RuntimeError(f"Query failed: {status.status.error}")
-            raise RuntimeError("Query timed out after 60s")
-    except Exception as e:
-        logger.error(f"Query execution error: {e}")
-        raise
-
-
-def _parse_result(resp) -> list[dict]:
-    """Parse SQL statement response into list of dicts."""
-    if not resp.result or not resp.result.data_array:
-        return []
-
-    columns = []
-    if resp.manifest and resp.manifest.schema and resp.manifest.schema.columns:
-        columns = [col.name for col in resp.manifest.schema.columns]
-    else:
-        return [{"col_" + str(i): v for i, v in enumerate(row)} for row in resp.result.data_array]
-
-    results = []
-    for row in resp.result.data_array:
-        record = {}
-        for i, col_name in enumerate(columns):
-            record[col_name] = row[i] if i < len(row) else None
-        results.append(record)
-    return results
