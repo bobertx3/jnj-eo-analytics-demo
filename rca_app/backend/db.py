@@ -1,11 +1,12 @@
 """
 Database connection module for Lakebase PostgreSQL (primary) and Databricks SQL Warehouse (Genie fallback).
-Supports both local development (with profile) and deployed App (with service principal).
+Supports both local development (OAuth credential generation) and deployed App (service principal).
 """
 import os
 import logging
+from datetime import datetime, date
+from decimal import Decimal
 from typing import Optional
-from functools import cached_property
 
 from databricks.sdk import WorkspaceClient
 from sqlalchemy import create_engine, text, event
@@ -22,6 +23,7 @@ IS_DATABRICKS_APP = bool(os.environ.get("DATABRICKS_APP_NAME"))
 LAKEBASE_HOST = os.environ.get("LAKEBASE_HOST", "")
 LAKEBASE_DATABASE = os.environ.get("LAKEBASE_DATABASE", "databricks_postgres")
 LAKEBASE_INSTANCE_NAME = os.environ.get("LAKEBASE_INSTANCE_NAME", "jnj-eo-analytics-demo")
+PG_SCHEMA = "eo_lakebase"
 
 
 def get_workspace_client() -> WorkspaceClient:
@@ -62,23 +64,6 @@ def get_oauth_token() -> Optional[str]:
 _engine: Optional[Engine] = None
 
 
-def _get_db_username() -> str:
-    """Get the Databricks identity username for DB auth."""
-    w = get_workspace_client()
-    if w.config.client_id:
-        return w.config.client_id
-    return w.current_user.me().user_name
-
-
-def _resolve_lakebase_host() -> str:
-    """Get Lakebase host from env or auto-discover from instance name."""
-    if LAKEBASE_HOST:
-        return LAKEBASE_HOST
-    w = get_workspace_client()
-    instance = w.database.get_database_instance(LAKEBASE_INSTANCE_NAME)
-    return instance.read_write_dns
-
-
 def _inject_credential(dialect, conn_rec, cargs, cparams):
     """SQLAlchemy do_connect event: inject fresh OAuth token as password."""
     w = get_workspace_client()
@@ -89,29 +74,38 @@ def _inject_credential(dialect, conn_rec, cargs, cparams):
 
 
 def get_engine() -> Engine:
-    """Get or create the SQLAlchemy engine for Lakebase PostgreSQL."""
+    """Get or create the SQLAlchemy engine for Lakebase PostgreSQL.
+
+    Both local dev and deployed app use OAuth credential injection.
+    The Lakebase resource binding gives the SP permission to generate credentials.
+    We always connect to the shared databricks_postgres database where synced tables live.
+    """
     global _engine
     if _engine is not None:
         return _engine
 
-    host = _resolve_lakebase_host()
-    username = _get_db_username()
+    # Resolve host
+    host = LAKEBASE_HOST
+    if not host:
+        w = get_workspace_client()
+        instance = w.database.get_database_instance(LAKEBASE_INSTANCE_NAME)
+        host = instance.read_write_dns
 
-    url = f"postgresql+psycopg://{username}:@{host}:5432/{LAKEBASE_DATABASE}"
-    logger.info(f"Connecting to Lakebase PostgreSQL at {host}")
+    # Resolve username (SP client_id when deployed, user email for local dev)
+    w = get_workspace_client()
+    username = w.config.client_id if w.config.client_id else w.current_user.me().user_name
+    database = LAKEBASE_DATABASE
+    port = os.environ.get("PGPORT", "5432")
 
-    # Synced tables land in the 'eo_lakebase' schema in PostgreSQL
-    # (matching the UC schema used for synced table registration).
-    # Set search_path so unqualified table names resolve correctly.
+    logger.info(f"Connecting to Lakebase at {host} db={database} user={username}")
+
+    url = f"postgresql+psycopg://{username}:@{host}:{port}/{database}"
     engine = create_engine(
         url,
         pool_recycle=45 * 60,
         pool_size=4,
         pool_pre_ping=True,
-        connect_args={
-            "sslmode": "require",
-            "options": "-c search_path=eo_lakebase,public",
-        },
+        connect_args={"sslmode": "require"},
     )
     event.listen(engine, "do_connect", _inject_credential)
 
@@ -132,6 +126,8 @@ def execute_query(sql: str, params: dict = None) -> list[dict]:
 
     try:
         with engine.connect() as conn:
+            # Ensure search_path includes our synced table schema
+            conn.execute(text(f"SET search_path TO {PG_SCHEMA}, public"))
             result = conn.execute(text(sql))
             columns = list(result.keys())
             rows = []
@@ -139,6 +135,13 @@ def execute_query(sql: str, params: dict = None) -> list[dict]:
                 record = {}
                 for i, col_name in enumerate(columns):
                     val = row[i]
+                    # Serialize PostgreSQL types to JSON-safe values
+                    if isinstance(val, datetime):
+                        val = val.isoformat()
+                    elif isinstance(val, date):
+                        val = val.isoformat()
+                    elif isinstance(val, Decimal):
+                        val = float(val)
                     record[col_name] = val
                 rows.append(record)
             return rows

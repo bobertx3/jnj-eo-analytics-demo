@@ -9,12 +9,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@xyflow/react": "^12.10.1",
+    "d3-drag": "^3.0.0",
+    "d3-force": "^3.0.0",
+    "d3-selection": "^3.0.0",
+    "d3-zoom": "^3.0.0",
+    "lucide-react": "^0.441.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-markdown": "^9.0.1",
     "react-router-dom": "^6.26.0",
-    "recharts": "^2.13.0",
-    "lucide-react": "^0.441.0",
-    "react-markdown": "^9.0.1"
+    "recharts": "^2.13.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.3",

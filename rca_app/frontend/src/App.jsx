@@ -12,6 +12,8 @@ import ChangeCorrelation from './pages/ChangeCorrelation';
 import DomainDeepDive from './pages/DomainDeepDive';
 import TopologyExplorer from './pages/TopologyExplorer';
 import GenieChat from './pages/GenieChat';
+import TopologyExplorer2 from './pages/TopologyExplorer2';
+import D3Map from './pages/D3Map';
 
 const NAV_ITEMS = [
   {
@@ -32,7 +34,7 @@ const NAV_ITEMS = [
     section: 'Explore',
     items: [
       { path: '/domain-deep-dive', label: 'Domain Deep Dive', icon: Layers },
-      { path: '/topology', label: 'Topology Explorer', icon: Network },
+      { path: '/d3-map', label: 'Service Map Explorer', icon: Network },
     ],
   },
   {
@@ -102,6 +104,8 @@ export default function App() {
           <Route path="/change-correlation" element={<ChangeCorrelation />} />
           <Route path="/domain-deep-dive" element={<DomainDeepDive />} />
           <Route path="/topology" element={<TopologyExplorer />} />
+          <Route path="/topology-2" element={<TopologyExplorer2 />} />
+          <Route path="/d3-map" element={<D3Map />} />
           <Route path="/genie" element={<GenieChat />} />
         </Routes>
       </main>
