@@ -3,7 +3,7 @@ env:
   - name: 'DATABRICKS_WAREHOUSE_ID'
     valueFrom: 'sql-warehouse'
   - name: 'GENIE_SPACE_ID'
-    value: '01f11276e8831838981f4c5743c5a3e3'
+    value: '01f12b09e924156a8dd45ba78787ed15'
   - name: 'NODE_ENV'
     value: 'production'
   - name: 'LAKEBASE_INSTANCE_NAME'

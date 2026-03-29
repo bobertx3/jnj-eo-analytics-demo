@@ -21,7 +21,7 @@ variables:
   warehouse_id:
     default: 08381690ac2b0e1a
   genie_space_id:
-    default: 01f11276e8831838981f4c5743c5a3e3
+    default: 01f12b09e924156a8dd45ba78787ed15
   lakebase_host:
     default: ep-spring-forest-d2gs5o2y.database.us-east-1.cloud.databricks.com
   lakebase_database:
