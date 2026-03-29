@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Routes, Route, NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Search, BarChart3, GitCompare,
-  Layers, Network, Activity, Sparkles
+  Layers, Network, Activity, Sparkles, Workflow
 } from 'lucide-react';
+import DataFlowModal from './components/DataFlowModal';
 
 import ExecutiveDashboard from './pages/ExecutiveDashboard';
 import RootCauseIntelligence from './pages/RootCauseIntelligence';
@@ -47,9 +48,12 @@ const NAV_ITEMS = [
 
 export default function App() {
   const location = useLocation();
+  const [showDataFlow, setShowDataFlow] = useState(false);
 
   return (
     <div className="app-layout">
+      <DataFlowModal isOpen={showDataFlow} onClose={() => setShowDataFlow(false)} />
+
       {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-header">
@@ -58,6 +62,18 @@ export default function App() {
             <h1>RCA Intelligence</h1>
           </div>
           <div className="subtitle">Enterprise Root Cause Analysis</div>
+          <button
+            onClick={() => setShowDataFlow(true)}
+            style={{
+              marginTop: 10, display: 'flex', alignItems: 'center', gap: 6,
+              background: '#111f33', border: '1px solid #1e3a5f', borderRadius: 8,
+              color: '#00d4ff', padding: '6px 12px', fontSize: '0.75rem', fontWeight: 600,
+              cursor: 'pointer', width: '100%', justifyContent: 'center',
+            }}
+          >
+            <Workflow size={14} />
+            Data Flow
+          </button>
         </div>
         <nav>
           <ul className="sidebar-nav">
