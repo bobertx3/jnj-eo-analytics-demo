@@ -45,7 +45,7 @@ async def get_ticket_noise(
       ) as duplicate_pct,
       ROUND(SUM(revenue_impact_usd)::numeric, 2) as total_revenue_impact
     FROM silver_servicenow_correlation
-    WHERE created_at >= CURRENT_DATE - INTERVAL '{days} days'
+    WHERE created_at >= (SELECT MAX(created_at) FROM silver_incidents) - INTERVAL '{days} days'
     GROUP BY root_service
     HAVING SUM(servicenow_ticket_count) > 0
     ORDER BY total_duplicates DESC, duplicate_pct DESC
@@ -79,7 +79,7 @@ async def get_incident_timeline(
       SUM(affected_user_count) as daily_user_impact,
       ROUND(AVG(mttr_minutes)::numeric, 1) as avg_mttr
     FROM silver_incidents
-    WHERE created_at >= CURRENT_DATE - INTERVAL '{days} days'
+    WHERE created_at >= (SELECT MAX(created_at) FROM silver_incidents) - INTERVAL '{days} days'
       AND {where_sql}
     GROUP BY DATE(created_at)
     ORDER BY incident_date
@@ -167,7 +167,7 @@ async def get_mttr_trend(days: int = Query(default=90)):
       ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY mttr_minutes)::numeric, 1) as p95_mttr,
       COUNT(*) as incident_count
     FROM silver_incidents
-    WHERE created_at >= CURRENT_DATE - INTERVAL '{days} days'
+    WHERE created_at >= (SELECT MAX(created_at) FROM silver_incidents) - INTERVAL '{days} days'
     GROUP BY EXTRACT(WEEK FROM created_at)::int
     ORDER BY week_num
     """)

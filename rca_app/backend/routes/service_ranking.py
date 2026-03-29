@@ -61,7 +61,7 @@ async def get_service_health_timeline(
       error_rate_pct
     FROM silver_service_health
     WHERE service_name = '{service}'
-      AND health_date >= CURRENT_DATE - INTERVAL '{days} days'
+      AND health_date >= (SELECT MAX(health_date) FROM silver_service_health) - INTERVAL '{days} days'
     ORDER BY health_date
     """)
     return rows
@@ -275,7 +275,7 @@ async def get_service_alerts(service_name: str, days: int = Query(default=30)):
       is_pre_incident_signal
     FROM silver_alerts
     WHERE service = '{service_name}'
-      AND fired_at >= CURRENT_DATE - INTERVAL '{days} days'
+      AND fired_at >= (SELECT MAX(fired_at) FROM silver_alerts) - INTERVAL '{days} days'
     ORDER BY fired_at DESC
     LIMIT 50
     """)

@@ -45,7 +45,7 @@ async def get_change_timeline(days: int = Query(default=90)):
       incidents_within_4h,
       incidents_within_24h
     FROM silver_changes
-    WHERE executed_at >= CURRENT_DATE - INTERVAL '{days} days'
+    WHERE executed_at >= (SELECT MAX(executed_at) FROM silver_changes) - INTERVAL '{days} days'
     ORDER BY executed_at
     """)
 
@@ -61,7 +61,7 @@ async def get_change_timeline(days: int = Query(default=90)):
       domain,
       failure_pattern_name
     FROM silver_incidents
-    WHERE created_at >= CURRENT_DATE - INTERVAL '{days} days'
+    WHERE created_at >= (SELECT MAX(created_at) FROM silver_incidents) - INTERVAL '{days} days'
     ORDER BY created_at
     """)
 

@@ -109,18 +109,26 @@ async def _poll_genie_result(session, host, headers, conversation_id, message_id
     """Poll for Genie message completion."""
     url = f"{host}/api/2.0/genie/spaces/{GENIE_SPACE_ID}/conversations/{conversation_id}/messages/{message_id}"
 
-    for _ in range(max_wait // 2):
-        async with session.get(url, headers=headers) as resp:
-            if resp.status == 200:
-                data = await resp.json()
-                status = data.get("status", "")
+    for attempt in range(max_wait // 2):
+        try:
+            async with session.get(url, headers=headers) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    status = data.get("status", "")
+                    logger.info(f"Genie poll attempt {attempt}: status={status}")
 
-                if status in ("COMPLETED", "COMPLETE"):
-                    return _extract_genie_answer(data)
-                elif status in ("FAILED", "CANCELLED"):
-                    return {"answer": f"Query failed: {data.get('error', 'Unknown error')}", "sql": None, "data": None}
+                    if status in ("COMPLETED", "COMPLETE"):
+                        return _extract_genie_answer(data)
+                    elif status in ("FAILED", "CANCELLED"):
+                        logger.error(f"Genie query failed: {data.get('error', 'Unknown error')}")
+                        return {"answer": f"Query failed: {data.get('error', 'Unknown error')}", "sql": None, "data": None}
+                else:
+                    logger.warning(f"Genie poll attempt {attempt}: HTTP {resp.status}")
+        except Exception as e:
+            logger.error(f"Genie poll error on attempt {attempt}: {e}")
         await _async_sleep(2)
 
+    logger.warning("Genie query timed out")
     return {"answer": "Query timed out waiting for Genie response.", "sql": None, "data": None}
 
 

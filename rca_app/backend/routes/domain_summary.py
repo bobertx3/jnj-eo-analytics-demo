@@ -53,7 +53,7 @@ async def get_domain_heatmap(days: int = Query(default=90)):
       change_count,
       domain_risk_score
     FROM gold_domain_impact_summary
-    WHERE summary_date >= CURRENT_DATE - INTERVAL '{days} days'
+    WHERE summary_date >= (SELECT MAX(summary_date) FROM gold_domain_impact_summary) - INTERVAL '{days} days'
     ORDER BY summary_date, domain
     """)
     return rows
@@ -82,7 +82,7 @@ async def get_domain_trend(
       SUM(change_count) as weekly_changes,
       SUM(alert_count) as weekly_alerts
     FROM gold_domain_impact_summary
-    WHERE summary_date >= CURRENT_DATE - INTERVAL '{days} days'
+    WHERE summary_date >= (SELECT MAX(summary_date) FROM gold_domain_impact_summary) - INTERVAL '{days} days'
       {where_clause}
     GROUP BY domain, summary_year, summary_month, EXTRACT(WEEK FROM summary_date)::int
     ORDER BY domain, week_start
@@ -143,7 +143,7 @@ async def get_domain_incidents(
       sla_breached
     FROM silver_incidents
     WHERE domain = '{domain_name}'
-      AND created_at >= CURRENT_DATE - INTERVAL '{days} days'
+      AND created_at >= (SELECT MAX(created_at) FROM silver_incidents) - INTERVAL '{days} days'
     ORDER BY created_at DESC
     LIMIT {limit}
     """)
@@ -167,7 +167,7 @@ async def get_domain_alerts(
       ROUND(AVG(breach_magnitude_pct)::numeric, 2) as avg_breach_magnitude
     FROM silver_alerts
     WHERE domain = '{domain_name}'
-      AND fired_at >= CURRENT_DATE - INTERVAL '{days} days'
+      AND fired_at >= (SELECT MAX(fired_at) FROM silver_alerts) - INTERVAL '{days} days'
     GROUP BY service, alert_name
     ORDER BY alert_count DESC
     """)
