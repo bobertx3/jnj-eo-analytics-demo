@@ -2,6 +2,9 @@
 Genie Space proxy routes.
 Proxies natural language queries to Databricks Genie Space API
 for the Enterprise RCA Intelligence Q&A.
+
+Note: Genie queries go through Databricks REST API (not Lakebase).
+Fallback SQL queries use Lakebase PostgreSQL via execute_query.
 """
 import os
 import time
@@ -9,7 +12,7 @@ import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
-from backend.db import get_workspace_host, get_oauth_token, execute_query, CATALOG, SCHEMA
+from backend.db import get_workspace_host, get_oauth_token, execute_query
 
 import aiohttp
 
@@ -106,18 +109,26 @@ async def _poll_genie_result(session, host, headers, conversation_id, message_id
     """Poll for Genie message completion."""
     url = f"{host}/api/2.0/genie/spaces/{GENIE_SPACE_ID}/conversations/{conversation_id}/messages/{message_id}"
 
-    for _ in range(max_wait // 2):
-        async with session.get(url, headers=headers) as resp:
-            if resp.status == 200:
-                data = await resp.json()
-                status = data.get("status", "")
+    for attempt in range(max_wait // 2):
+        try:
+            async with session.get(url, headers=headers) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    status = data.get("status", "")
+                    logger.info(f"Genie poll attempt {attempt}: status={status}")
 
-                if status in ("COMPLETED", "COMPLETE"):
-                    return _extract_genie_answer(data)
-                elif status in ("FAILED", "CANCELLED"):
-                    return {"answer": f"Query failed: {data.get('error', 'Unknown error')}", "sql": None, "data": None}
+                    if status in ("COMPLETED", "COMPLETE"):
+                        return _extract_genie_answer(data)
+                    elif status in ("FAILED", "CANCELLED"):
+                        logger.error(f"Genie query failed: {data.get('error', 'Unknown error')}")
+                        return {"answer": f"Query failed: {data.get('error', 'Unknown error')}", "sql": None, "data": None}
+                else:
+                    logger.warning(f"Genie poll attempt {attempt}: HTTP {resp.status}")
+        except Exception as e:
+            logger.error(f"Genie poll error on attempt {attempt}: {e}")
         await _async_sleep(2)
 
+    logger.warning("Genie query timed out")
     return {"answer": "Query timed out waiting for Genie response.", "sql": None, "data": None}
 
 
@@ -134,18 +145,25 @@ def _extract_genie_answer(data):
     result_data = None
 
     for att in attachments:
-        if att.get("type") == "TEXT":
-            answer_text = att.get("text", {}).get("content", "")
-        elif att.get("type") == "QUERY":
+        att_type = att.get("type", "")
+        # Handle both formats: {"type": "TEXT", "text": {...}} and {"text": {...}} without type
+        if att_type == "TEXT" or ("text" in att and "query" not in att):
+            text_obj = att.get("text", {})
+            if isinstance(text_obj, dict):
+                answer_text = text_obj.get("content", "")
+            elif isinstance(text_obj, str):
+                answer_text = text_obj
+        elif att_type == "QUERY" or "query" in att:
             query_info = att.get("query", {})
-            sql_query = query_info.get("query", "")
-            # Extract result table if present
-            result_info = query_info.get("result", {})
-            columns = result_info.get("columns", [])
-            rows = result_info.get("data", [])
-            if columns and rows:
-                col_names = [c.get("name", f"col_{i}") for i, c in enumerate(columns)]
-                result_data = [dict(zip(col_names, row)) for row in rows]
+            if isinstance(query_info, dict):
+                sql_query = query_info.get("query", "") or query_info.get("sql", "")
+                # Extract result table if present
+                result_info = query_info.get("result", {})
+                columns = result_info.get("columns", [])
+                rows = result_info.get("data", result_info.get("rows", []))
+                if columns and rows:
+                    col_names = [c.get("name", f"col_{i}") for i, c in enumerate(columns)]
+                    result_data = [dict(zip(col_names, row)) for row in rows]
 
     if not answer_text:
         answer_text = data.get("content", "No answer text available.")
@@ -159,14 +177,14 @@ async def _fallback_sql_answer(question: str):
 
     # Story 1: Supply chain / shipment delays
     if any(kw in q for kw in ["shipment", "supply chain", "delays in shipment", "shipping", "inventory"]):
-        rows = execute_query(f"""
+        rows = execute_query("""
         SELECT
           incident_id, title, severity, root_service, business_unit,
           created_at, mttr_minutes, revenue_impact_usd,
           shipments_delayed, affected_user_count,
           servicenow_ticket_count, servicenow_duplicate_tickets,
           downstream_impact_narrative, root_cause_explanation
-        FROM {CATALOG}.{SCHEMA}.silver_incidents
+        FROM silver_incidents
         WHERE business_unit = 'supply-chain'
           AND severity = 'P1'
         ORDER BY created_at DESC
@@ -190,14 +208,14 @@ async def _fallback_sql_answer(question: str):
 
     # Story 2: Digital surgery / data science productivity
     if any(kw in q for kw in ["data scientist", "digital surgery", "sagemaker", "productivity", "ml engineer"]):
-        rows = execute_query(f"""
+        rows = execute_query("""
         SELECT
           incident_id, title, severity, root_service, business_unit,
           created_at, mttr_minutes, revenue_impact_usd,
           productivity_loss_usd, affected_user_count,
           servicenow_ticket_count, servicenow_duplicate_tickets,
           downstream_impact_narrative, root_cause_explanation
-        FROM {CATALOG}.{SCHEMA}.silver_incidents
+        FROM silver_incidents
         WHERE business_unit = 'digital-surgery'
           AND severity = 'P1'
         ORDER BY created_at DESC
@@ -220,14 +238,14 @@ async def _fallback_sql_answer(question: str):
 
     # Duplicate tickets
     if any(kw in q for kw in ["duplicate", "servicenow", "tickets"]):
-        rows = execute_query(f"""
+        rows = execute_query("""
         SELECT
           failure_pattern_name,
           business_unit,
           SUM(servicenow_ticket_count) as total_tickets,
           SUM(servicenow_duplicate_tickets) as total_duplicates,
-          ROUND(SUM(servicenow_duplicate_tickets) * 100.0 / NULLIF(SUM(servicenow_ticket_count), 0), 1) as duplicate_pct
-        FROM {CATALOG}.{SCHEMA}.silver_servicenow_correlation
+          ROUND((SUM(servicenow_duplicate_tickets) * 100.0 / NULLIF(SUM(servicenow_ticket_count), 0))::numeric, 1) as duplicate_pct
+        FROM silver_servicenow_correlation
         GROUP BY failure_pattern_name, business_unit
         ORDER BY total_duplicates DESC
         LIMIT 10
@@ -237,7 +255,7 @@ async def _fallback_sql_answer(question: str):
 
     # Revenue / business impact
     if any(kw in q for kw in ["revenue", "business impact", "cost", "financial"]):
-        rows = execute_query(f"""
+        rows = execute_query("""
         SELECT
           business_unit,
           total_incidents,
@@ -248,7 +266,7 @@ async def _fallback_sql_answer(question: str):
           overall_duplicate_pct,
           total_productivity_loss,
           total_shipments_delayed
-        FROM {CATALOG}.{SCHEMA}.gold_business_impact_summary
+        FROM gold_business_impact_summary
         ORDER BY total_revenue_impact DESC
         """)
         answer = "Here is the business impact summary by business unit:"
@@ -256,7 +274,7 @@ async def _fallback_sql_answer(question: str):
 
     # Blast radius
     if any(kw in q for kw in ["blast radius", "most impacted", "cascading"]):
-        rows = execute_query(f"""
+        rows = execute_query("""
         SELECT
           failure_pattern_name,
           root_service,
@@ -266,7 +284,7 @@ async def _fallback_sql_answer(question: str):
           total_revenue_impact,
           all_impacted_services,
           root_cause_explanation
-        FROM {CATALOG}.{SCHEMA}.gold_root_cause_patterns
+        FROM gold_root_cause_patterns
         ORDER BY avg_blast_radius DESC
         LIMIT 10
         """)
@@ -274,13 +292,13 @@ async def _fallback_sql_answer(question: str):
         return GenieQueryResponse(answer=answer, data=rows)
 
     # Generic: recent P1 incidents
-    rows = execute_query(f"""
+    rows = execute_query("""
     SELECT
       incident_id, title, severity, root_service, business_unit,
       created_at, mttr_minutes, revenue_impact_usd,
       affected_user_count, downstream_impact_narrative,
       root_cause_explanation
-    FROM {CATALOG}.{SCHEMA}.silver_incidents
+    FROM silver_incidents
     WHERE severity = 'P1'
     ORDER BY created_at DESC
     LIMIT 10

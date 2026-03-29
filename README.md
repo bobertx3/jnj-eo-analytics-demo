@@ -42,10 +42,11 @@ Edit `rca_app/.env` with your values:
 
 ### 2. Data setup (synthetic data)
 
-Create the schema/volume and generate synthetic data into the Unity Catalog volume (scripts skip if volume already has data):
+Create the schema/volume, optionally load checked-in static data, and generate synthetic data into the Unity Catalog volume (scripts skip if volume already has data):
 
 ```bash
 python setup_pipeline/00_create_schema_and_volume.py
+python setup_pipeline/00b_load_static_data.py
 python setup_pipeline/01_generate_raw_telemetry.py
 python setup_pipeline/02_generate_protobuf_network_flows.py
 ```
@@ -92,6 +93,9 @@ cd rca_app/frontend && npm run dev
 ```bash
 # Deploy the app + pipeline job via DABs
 databricks bundle deploy --profile DEFAULT
+
+# Optional: run one-time setup orchestration job (schema/volume + medallion build)
+databricks bundle run jnj-eo-analytics-demo-setup --profile DEFAULT
 
 # Kick off the data pipeline
 databricks bundle run jnj-eo-analytics-demo-pipeline --profile DEFAULT

@@ -3,7 +3,7 @@ Domain-level Impact Summary API routes.
 """
 from fastapi import APIRouter, Query
 from typing import Optional
-from backend.db import execute_query, CATALOG, SCHEMA
+from backend.db import execute_query
 
 router = APIRouter(prefix="/api/domains", tags=["domains"])
 
@@ -11,16 +11,16 @@ router = APIRouter(prefix="/api/domains", tags=["domains"])
 @router.get("/summary")
 async def get_domain_summary():
     """Get aggregated domain-level impact summary."""
-    rows = execute_query(f"""
+    rows = execute_query("""
     SELECT
       domain,
       SUM(incident_count) as total_incidents,
       SUM(p1_count) as total_p1,
       SUM(p2_count) as total_p2,
       SUM(p3_count) as total_p3,
-      ROUND(AVG(avg_mttr_minutes), 1) as avg_mttr,
+      ROUND(AVG(avg_mttr_minutes)::numeric, 1) as avg_mttr,
       SUM(total_blast_radius) as total_blast_radius,
-      ROUND(SUM(total_revenue_impact), 2) as total_revenue_impact,
+      ROUND(SUM(total_revenue_impact)::numeric, 2) as total_revenue_impact,
       SUM(total_affected_users) as total_user_impact,
       SUM(sla_breaches) as total_sla_breaches,
       SUM(alert_count) as total_alerts,
@@ -28,9 +28,9 @@ async def get_domain_summary():
       SUM(change_count) as total_changes,
       SUM(high_risk_changes) as total_high_risk_changes,
       SUM(changes_causing_incidents) as total_changes_causing_incidents,
-      ROUND(AVG(domain_risk_score), 2) as avg_daily_risk_score,
-      ROUND(SUM(domain_risk_score), 2) as cumulative_risk_score
-    FROM {CATALOG}.{SCHEMA}.gold_domain_impact_summary
+      ROUND(AVG(domain_risk_score)::numeric, 2) as avg_daily_risk_score,
+      ROUND(SUM(domain_risk_score)::numeric, 2) as cumulative_risk_score
+    FROM gold_domain_impact_summary
     GROUP BY domain
     ORDER BY cumulative_risk_score DESC
     """)
@@ -52,8 +52,8 @@ async def get_domain_heatmap(days: int = Query(default=90)):
       critical_alert_count,
       change_count,
       domain_risk_score
-    FROM {CATALOG}.{SCHEMA}.gold_domain_impact_summary
-    WHERE summary_date >= current_date() - INTERVAL {days} DAYS
+    FROM gold_domain_impact_summary
+    WHERE summary_date >= (SELECT MAX(summary_date) FROM gold_domain_impact_summary) - INTERVAL '{days} days'
     ORDER BY summary_date, domain
     """)
     return rows
@@ -72,19 +72,19 @@ async def get_domain_trend(
       domain,
       summary_year,
       summary_month,
-      WEEKOFYEAR(summary_date) as week_num,
+      EXTRACT(WEEK FROM summary_date)::int as week_num,
       MIN(summary_date) as week_start,
       SUM(incident_count) as weekly_incidents,
       SUM(p1_count) as weekly_p1,
-      ROUND(SUM(total_revenue_impact), 2) as weekly_revenue_impact,
+      ROUND(SUM(total_revenue_impact)::numeric, 2) as weekly_revenue_impact,
       SUM(total_affected_users) as weekly_user_impact,
-      ROUND(AVG(domain_risk_score), 2) as avg_risk_score,
+      ROUND(AVG(domain_risk_score)::numeric, 2) as avg_risk_score,
       SUM(change_count) as weekly_changes,
       SUM(alert_count) as weekly_alerts
-    FROM {CATALOG}.{SCHEMA}.gold_domain_impact_summary
-    WHERE summary_date >= current_date() - INTERVAL {days} DAYS
+    FROM gold_domain_impact_summary
+    WHERE summary_date >= (SELECT MAX(summary_date) FROM gold_domain_impact_summary) - INTERVAL '{days} days'
       {where_clause}
-    GROUP BY domain, summary_year, summary_month, WEEKOFYEAR(summary_date)
+    GROUP BY domain, summary_year, summary_month, EXTRACT(WEEK FROM summary_date)::int
     ORDER BY domain, week_start
     """)
     return rows
@@ -96,7 +96,7 @@ async def get_domain_services(domain_name: str):
     rows = execute_query(f"""
     WITH domain_svc AS (
       SELECT DISTINCT root_service as service_name
-      FROM {CATALOG}.{SCHEMA}.silver_incidents
+      FROM silver_incidents
       WHERE domain = '{domain_name}'
         AND root_service IS NOT NULL
     )
@@ -113,7 +113,7 @@ async def get_domain_services(domain_name: str):
       g.avg_health_score,
       g.avg_error_rate,
       g.risky_changes
-    FROM {CATALOG}.{SCHEMA}.gold_service_risk_ranking g
+    FROM gold_service_risk_ranking g
     JOIN domain_svc ds ON g.service_name = ds.service_name
     ORDER BY g.risk_score DESC
     """)
@@ -141,9 +141,9 @@ async def get_domain_incidents(
       revenue_impact_usd,
       affected_user_count,
       sla_breached
-    FROM {CATALOG}.{SCHEMA}.silver_incidents
+    FROM silver_incidents
     WHERE domain = '{domain_name}'
-      AND created_at >= current_date() - INTERVAL {days} DAYS
+      AND created_at >= (SELECT MAX(created_at) FROM silver_incidents) - INTERVAL '{days} days'
     ORDER BY created_at DESC
     LIMIT {limit}
     """)
@@ -164,10 +164,10 @@ async def get_domain_alerts(
       SUM(CASE WHEN severity = 'critical' THEN 1 ELSE 0 END) as critical_count,
       SUM(CASE WHEN is_incident_correlated THEN 1 ELSE 0 END) as incident_correlated,
       SUM(CASE WHEN is_pre_incident_signal THEN 1 ELSE 0 END) as pre_incident_count,
-      ROUND(AVG(breach_magnitude_pct), 2) as avg_breach_magnitude
-    FROM {CATALOG}.{SCHEMA}.silver_alerts
+      ROUND(AVG(breach_magnitude_pct)::numeric, 2) as avg_breach_magnitude
+    FROM silver_alerts
     WHERE domain = '{domain_name}'
-      AND fired_at >= current_date() - INTERVAL {days} DAYS
+      AND fired_at >= (SELECT MAX(fired_at) FROM silver_alerts) - INTERVAL '{days} days'
     GROUP BY service, alert_name
     ORDER BY alert_count DESC
     """)

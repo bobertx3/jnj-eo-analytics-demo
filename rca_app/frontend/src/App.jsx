@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Routes, Route, NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Search, BarChart3, GitCompare,
-  Layers, Network, Activity, Sparkles
+  Layers, Network, Activity, Sparkles, Workflow
 } from 'lucide-react';
+import DataFlowModal from './components/DataFlowModal';
 
 import ExecutiveDashboard from './pages/ExecutiveDashboard';
 import RootCauseIntelligence from './pages/RootCauseIntelligence';
@@ -12,6 +13,8 @@ import ChangeCorrelation from './pages/ChangeCorrelation';
 import DomainDeepDive from './pages/DomainDeepDive';
 import TopologyExplorer from './pages/TopologyExplorer';
 import GenieChat from './pages/GenieChat';
+import TopologyExplorer2 from './pages/TopologyExplorer2';
+import D3Map from './pages/D3Map';
 
 const NAV_ITEMS = [
   {
@@ -32,7 +35,7 @@ const NAV_ITEMS = [
     section: 'Explore',
     items: [
       { path: '/domain-deep-dive', label: 'Domain Deep Dive', icon: Layers },
-      { path: '/topology', label: 'Topology Explorer', icon: Network },
+      { path: '/d3-map', label: 'Service Map Explorer', icon: Network },
     ],
   },
   {
@@ -45,9 +48,12 @@ const NAV_ITEMS = [
 
 export default function App() {
   const location = useLocation();
+  const [showDataFlow, setShowDataFlow] = useState(false);
 
   return (
     <div className="app-layout">
+      <DataFlowModal isOpen={showDataFlow} onClose={() => setShowDataFlow(false)} />
+
       {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-header">
@@ -56,6 +62,18 @@ export default function App() {
             <h1>RCA Intelligence</h1>
           </div>
           <div className="subtitle">Enterprise Root Cause Analysis</div>
+          <button
+            onClick={() => setShowDataFlow(true)}
+            style={{
+              marginTop: 10, display: 'flex', alignItems: 'center', gap: 6,
+              background: '#111f33', border: '1px solid #1e3a5f', borderRadius: 8,
+              color: '#00d4ff', padding: '6px 12px', fontSize: '0.75rem', fontWeight: 600,
+              cursor: 'pointer', width: '100%', justifyContent: 'center',
+            }}
+          >
+            <Workflow size={14} />
+            Data Flow
+          </button>
         </div>
         <nav>
           <ul className="sidebar-nav">
@@ -102,6 +120,8 @@ export default function App() {
           <Route path="/change-correlation" element={<ChangeCorrelation />} />
           <Route path="/domain-deep-dive" element={<DomainDeepDive />} />
           <Route path="/topology" element={<TopologyExplorer />} />
+          <Route path="/topology-2" element={<TopologyExplorer2 />} />
+          <Route path="/d3-map" element={<D3Map />} />
           <Route path="/genie" element={<GenieChat />} />
         </Routes>
       </main>

@@ -1,0 +1,5 @@
+[allowlist]
+description = "Allow synthetic token-like strings in demo static log data"
+paths = [
+  '''^static_data/logs/logs_chunk_.*\.jsonl$''',
+]

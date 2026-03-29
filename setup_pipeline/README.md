@@ -7,6 +7,7 @@ End-to-end data setup: create the schema/volume, generate synthetic data, build 
 | # | Script | Phase | Purpose |
 |---|--------|-------|---------|
 | 00 | `00_create_schema_and_volume.py` | Schema | Create UC schema + managed volume with subdirs |
+| 00b | `00b_load_static_data.py` | Data load | Copy repo `static_data/` into UC volume raw_landing |
 | 01 | `01_generate_raw_telemetry.py` | Data gen | Generate OTLP metrics/logs/traces/events (skips if volume non-empty) |
 | 02 | `02_generate_protobuf_network_flows.py` | Data gen | Generate network flow .pb files (skips if volume non-empty) |
 | 03 | `03_create_bronze_tables.py` | Pipeline | Volume → bronze Delta tables |
@@ -20,6 +21,7 @@ End-to-end data setup: create the schema/volume, generate synthetic data, build 
 ```bash
 # From repo root, with DATABRICKS_PROFILE set or using the DEFAULT profile
 python setup_pipeline/00_create_schema_and_volume.py
+python setup_pipeline/00b_load_static_data.py
 python setup_pipeline/01_generate_raw_telemetry.py
 python setup_pipeline/02_generate_protobuf_network_flows.py
 python setup_pipeline/03_create_bronze_tables.py

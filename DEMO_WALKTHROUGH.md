@@ -1,4 +1,8 @@
-# Demo Narrative — Enterprise Root Cause Intelligence
+# Enterprise Root Cause Intelligence - Solution Accelerator
+
+![EO Solution Architecture](images/eo_solution_arch.png)
+
+Large enterprises run hundreds to thousands of applications across infrastructure, networking, and business systems, and each layer emits telemetry in different formats and tools. Historically, turning that fragmented signal data into actionable insight has been slow and expensive because teams had to manage multiple ingestion hops, glue infrastructure, and custom integration code. With **Databricks Zerobus**, you can stream telemetry data directly into Databricks, eliminating intermediary hops, reducing infrastructure overhead, and minimizing development work so teams can focus on root cause intelligence instead of pipeline plumbing.
 
 This walkthrough follows a single investigation thread: from spotting a business-impact signal on the Executive Dashboard, through root cause analysis and blast radius confirmation, to self-serve Q&A.
 

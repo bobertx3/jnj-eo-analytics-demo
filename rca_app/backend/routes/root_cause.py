@@ -8,7 +8,7 @@ import logging
 import aiohttp
 from fastapi import APIRouter, Query
 from typing import Optional
-from backend.db import execute_query, get_workspace_host, get_oauth_token, CATALOG, SCHEMA
+from backend.db import execute_query, get_workspace_host, get_oauth_token
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/root-cause", tags=["root-cause"])
@@ -20,7 +20,7 @@ MODEL_NAME = os.environ.get("SERVING_ENDPOINT", "databricks-claude-sonnet-4")
 @router.get("/patterns")
 async def get_root_cause_patterns():
     """Get all root cause patterns ranked by priority."""
-    rows = execute_query(f"""
+    rows = execute_query("""
     SELECT
       failure_pattern_id,
       failure_pattern_name,
@@ -48,7 +48,7 @@ async def get_root_cause_patterns():
       priority_score,
       avg_days_between_occurrences,
       root_cause_explanation
-    FROM {CATALOG}.{SCHEMA}.gold_root_cause_patterns
+    FROM gold_root_cause_patterns
     ORDER BY priority_score DESC
     """)
     return rows
@@ -57,9 +57,9 @@ async def get_root_cause_patterns():
 @router.get("/top-systemic-issue")
 async def get_top_systemic_issue():
     """Get the single most impactful systemic issue (the 'fix one thing' answer)."""
-    rows = execute_query(f"""
+    rows = execute_query("""
     SELECT *
-    FROM {CATALOG}.{SCHEMA}.gold_root_cause_patterns
+    FROM gold_root_cause_patterns
     ORDER BY priority_score DESC
     LIMIT 1
     """)
@@ -82,7 +82,7 @@ async def get_pattern_timeline(pattern_id: str):
       revenue_impact_usd,
       affected_user_count,
       sla_breached
-    FROM {CATALOG}.{SCHEMA}.silver_incidents
+    FROM silver_incidents
     WHERE failure_pattern_id = '{pattern_id}'
     ORDER BY created_at DESC
     """)
@@ -95,7 +95,7 @@ async def get_pattern_signals(pattern_id: str):
     # Get incidents for this pattern
     incidents = execute_query(f"""
     SELECT incident_id, created_at, root_service
-    FROM {CATALOG}.{SCHEMA}.silver_incidents
+    FROM silver_incidents
     WHERE failure_pattern_id = '{pattern_id}'
     """)
 
@@ -110,7 +110,7 @@ async def get_pattern_signals(pattern_id: str):
       alert_id, incident_id, service, alert_name, severity,
       fired_at, resolved_at, threshold_value, actual_value,
       is_pre_incident_signal, breach_magnitude_pct
-    FROM {CATALOG}.{SCHEMA}.silver_alerts
+    FROM silver_alerts
     WHERE incident_id IN ({incident_ids_sql})
     ORDER BY fired_at DESC
     LIMIT 50
@@ -127,19 +127,19 @@ async def generate_ai_analysis(
     # Gather data for analysis
     if pattern_id:
         patterns = execute_query(f"""
-        SELECT * FROM {CATALOG}.{SCHEMA}.gold_root_cause_patterns
+        SELECT * FROM gold_root_cause_patterns
         WHERE failure_pattern_id = '{pattern_id}'
         """)
     else:
-        patterns = execute_query(f"""
-        SELECT * FROM {CATALOG}.{SCHEMA}.gold_root_cause_patterns
+        patterns = execute_query("""
+        SELECT * FROM gold_root_cause_patterns
         ORDER BY priority_score DESC LIMIT 5
         """)
 
-    service_ranking = execute_query(f"""
+    service_ranking = execute_query("""
     SELECT service_name, risk_score, incident_count_as_root, total_revenue_impact,
            total_affected_users as total_user_impact, avg_mttr_minutes, unique_failure_patterns
-    FROM {CATALOG}.{SCHEMA}.gold_service_risk_ranking
+    FROM gold_service_risk_ranking
     ORDER BY risk_score DESC LIMIT 10
     """)
 

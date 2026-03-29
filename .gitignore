@@ -23,6 +23,9 @@ npm-debug.log*
 # Screenshots (dev only)
 screenshots/
 
+# Local/static demo data
+static_data/
+
 # OS
 .DS_Store
 Thumbs.db
