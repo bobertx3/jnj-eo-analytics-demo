@@ -28,6 +28,12 @@ variables:
     default: databricks_postgres
   lakebase_instance_name:
     default: jnj-eo-analytics-demo
+  mailgun_api_url:
+    default: "https://api.mailgun.net/v3/datakafe.com/messages"
+  sender:
+    default: "robert@datakafe.com"
+  recipient:
+    default: "robert.leach@databricks.com"
 
 workspace:
   host: https://fevm-stable-classic-zso77x-bx3.cloud.databricks.com
@@ -76,6 +82,12 @@ resources:
             value_from: lakebase-db
           - name: NODE_ENV
             value: production
+          - name: MAILGUN_API_URL
+            value: ${var.mailgun_api_url}
+          - name: SENDER
+            value: ${var.sender}
+          - name: RECIPIENT
+            value: ${var.recipient}
       resources:
         - name: sql-warehouse
           sql_warehouse:

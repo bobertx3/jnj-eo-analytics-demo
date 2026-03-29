@@ -29,4 +29,7 @@ databricks bundle deploy \
   --var "serving_endpoint=${SERVING_ENDPOINT:-}" \
   --var "databricks_token=${DATABRICKS_TOKEN:-}" \
   --var "warehouse_id=${DATABRICKS_WAREHOUSE_ID:-}" \
-  --var "genie_space_id=${GENIE_SPACE_ID:-}"
+  --var "genie_space_id=${GENIE_SPACE_ID:-}" \
+  --var "mailgun_api_url=${MAILGUN_API_URL:-}" \
+  --var "sender=${SENDER:-}" \
+  --var "recipient=${RECIPIENT:-}"
