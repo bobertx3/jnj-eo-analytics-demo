@@ -145,18 +145,25 @@ def _extract_genie_answer(data):
     result_data = None
 
     for att in attachments:
-        if att.get("type") == "TEXT":
-            answer_text = att.get("text", {}).get("content", "")
-        elif att.get("type") == "QUERY":
+        att_type = att.get("type", "")
+        # Handle both formats: {"type": "TEXT", "text": {...}} and {"text": {...}} without type
+        if att_type == "TEXT" or ("text" in att and "query" not in att):
+            text_obj = att.get("text", {})
+            if isinstance(text_obj, dict):
+                answer_text = text_obj.get("content", "")
+            elif isinstance(text_obj, str):
+                answer_text = text_obj
+        elif att_type == "QUERY" or "query" in att:
             query_info = att.get("query", {})
-            sql_query = query_info.get("query", "")
-            # Extract result table if present
-            result_info = query_info.get("result", {})
-            columns = result_info.get("columns", [])
-            rows = result_info.get("data", [])
-            if columns and rows:
-                col_names = [c.get("name", f"col_{i}") for i, c in enumerate(columns)]
-                result_data = [dict(zip(col_names, row)) for row in rows]
+            if isinstance(query_info, dict):
+                sql_query = query_info.get("query", "") or query_info.get("sql", "")
+                # Extract result table if present
+                result_info = query_info.get("result", {})
+                columns = result_info.get("columns", [])
+                rows = result_info.get("data", result_info.get("rows", []))
+                if columns and rows:
+                    col_names = [c.get("name", f"col_{i}") for i, c in enumerate(columns)]
+                    result_data = [dict(zip(col_names, row)) for row in rows]
 
     if not answer_text:
         answer_text = data.get("content", "No answer text available.")
