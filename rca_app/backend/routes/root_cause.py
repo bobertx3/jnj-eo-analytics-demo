@@ -9,6 +9,7 @@ import aiohttp
 from fastapi import APIRouter, Query
 from typing import Optional
 from backend.db import execute_query, get_workspace_host, get_oauth_token
+from backend.email import send_analysis_email
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/root-cause", tags=["root-cause"])
@@ -200,24 +201,35 @@ Data:
                 if response.status != 200:
                     error_text = await response.text()
                     logger.error(f"LLM API error ({response.status}): {error_text}")
+                    fallback = _generate_fallback_analysis(patterns, service_ranking)
+                    pattern_name = patterns[0].get("failure_pattern_name") if patterns else None
+                    email_result = send_analysis_email(fallback, "fallback", pattern_name)
                     return {
-                        "analysis": _generate_fallback_analysis(patterns, service_ranking),
+                        "analysis": fallback,
                         "model": "fallback",
-                        "note": f"AI model unavailable (HTTP {response.status}), using rule-based analysis"
+                        "note": f"AI model unavailable (HTTP {response.status}), using rule-based analysis",
+                        **email_result,
                     }
                 result = await response.json()
                 content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+                pattern_name = patterns[0].get("failure_pattern_name") if patterns else None
+                email_result = send_analysis_email(content, MODEL_NAME, pattern_name)
                 return {
                     "analysis": content,
                     "model": MODEL_NAME,
                     "patterns_analyzed": len(patterns),
+                    **email_result,
                 }
     except Exception as e:
         logger.error(f"AI analysis error: {e}")
+        fallback = _generate_fallback_analysis(patterns, service_ranking)
+        pattern_name = patterns[0].get("failure_pattern_name") if patterns else None
+        email_result = send_analysis_email(fallback, "fallback", pattern_name)
         return {
-            "analysis": _generate_fallback_analysis(patterns, service_ranking),
+            "analysis": fallback,
             "model": "fallback",
-            "note": f"AI model unavailable, using rule-based analysis: {str(e)}"
+            "note": f"AI model unavailable, using rule-based analysis: {str(e)}",
+            **email_result,
         }
 
 

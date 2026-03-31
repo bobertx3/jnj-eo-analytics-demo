@@ -4,7 +4,7 @@ import {
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
   Legend
 } from 'recharts';
-import { Brain, Sparkles, AlertTriangle, TrendingUp, RefreshCw } from 'lucide-react';
+import { Brain, Sparkles, AlertTriangle, TrendingUp, RefreshCw, Mail, MailX } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useApi, useApiPost, formatNumber, formatCurrency } from '../hooks/useApi';
 import { LoadingState, ErrorState } from '../components/LoadingState';
@@ -274,6 +274,21 @@ export default function RootCauseIntelligence() {
               color: 'var(--color-medium)',
             }}>
               {aiResult.note}
+            </div>
+          )}
+          {aiResult?.email_sent !== undefined && (
+            <div style={{
+              marginTop: 12, padding: '8px 12px',
+              background: aiResult.email_sent ? 'rgba(46, 160, 67, 0.08)' : 'rgba(210, 153, 34, 0.08)',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: '0.75rem',
+              display: 'flex', alignItems: 'center', gap: 6,
+              color: aiResult.email_sent ? 'var(--color-healthy)' : 'var(--color-text-muted)',
+            }}>
+              {aiResult.email_sent
+                ? <><Mail size={13} /> Analysis emailed to {aiResult.recipients?.join(', ')}</>
+                : <><MailX size={13} /> Email not sent: {aiResult.reason}</>
+              }
             </div>
           )}
         </div>
